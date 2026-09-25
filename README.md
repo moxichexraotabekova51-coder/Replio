@@ -15,7 +15,9 @@ broadcast, Live Chat va obunachilar bazasi. Interfeys — oq-qora (monoxrom), ti
 
 - [x] **1-faza** — loyiha, dizayn tizimi, auth (Google + email), rail karkasi, akkaunt almashtirish,
   barcha sahifalar skeleti va bo'sh holatlari, DB migratsiyalari va RLS, tariflar modali va checkout.uz to'lov oqimi.
-- [ ] 2-faza — Telegram bot ulash, webhook Edge Function, Welcome / Default Reply / Keywords, Contacts
+- [x] **2-faza** — Telegram bot ulash (shifrlangan token, secret_token'li webhook), `tg-webhook` Edge Function
+  (bitta RPC, 60 s kesh, javob webhook'ning o'zida), Welcome / Default Reply / Keywords / Command, Basic builder,
+  Contacts (AND/OR filtr, ommaviy amallar, CSV, profil paneli).
 - [ ] 3-faza — Flow builder va runtime
 - [ ] 4-faza — Triggerlar, shartlar, Sequences, Smart Delay, pg_cron worker
 - [ ] 5-faza — Live Chat (Realtime), Broadcasting, Growth Tools, shablonlar, Team
@@ -46,10 +48,22 @@ DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npm run db:
 4. **Auth → URL Configuration**: Site URL = `https://<domen>`, Redirect URLs = `https://<domen>/auth/callback`.
 5. **Database → Extensions**: `pg_cron` va `pg_trgm` yoqilganini tekshiring (migratsiya cron vazifalarini o'zi yaratadi).
 
+## Edge Function (bot webhook) deploy
+
+```bash
+supabase link --project-ref <ref>
+supabase db push                                   # migratsiyalar
+supabase secrets set BOT_TOKEN_KEY=<Vercel'dagi bilan BIR XIL 64 hex>
+supabase functions deploy tg-webhook --no-verify-jwt   # Telegram JWT yubormaydi; himoya — secret_token
+```
+
+`BOT_TOKEN_KEY` Vercel va Supabase secrets'da **bir xil** bo'lishi shart (token Next.js'da shifrlanadi, Edge Function'da ochiladi).
+
 ## Telegram botni ulash
 
 1. Telegram'da [@BotFather](https://t.me/BotFather) → `/newbot` → tokenni nusxalang.
-2. Replio → **Settings → Telegram** → tokenni qo'ying (2-fazada qo'shiladi: webhook avtomatik o'rnatiladi).
+2. Replio → **Settings → Telegram** → tokenni qo'ying. Webhook avtomatik o'rnatiladi:
+   `https://<project>.supabase.co/functions/v1/tg-webhook/<bot_id>` (`secret_token`, `max_connections: 100`).
 
 ## checkout.uz kaliti
 
@@ -71,8 +85,12 @@ DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npm run db:
 npm run lint && npm run typecheck && npm run build
 npm run db:test                # migratsiyalar + RLS testlari toza Postgres'da (PG* env bilan)
 npm run e2e:mock-checkout &    # checkout.uz soxta serveri (:4010)
+node e2e/mock-telegram.mjs &   # Telegram Bot API soxta serveri (:4020)
+supabase functions serve --env-file supabase/functions/.env.local &   # BOT_TOKEN_KEY, TELEGRAM_API_URL=http://host.docker.internal:4020
+deno test supabase/functions/_shared/   # runtime unit testlari
 npm run dev &
 CHROME_PATH=/path/to/chromium npm run e2e   # 13-bo'lim bo'yicha tugmalarni bosib tekshiradi
 ```
 
-E2E uchun `.env.local` da `CHECKOUT_API_KEY=test_checkout_key` va `CHECKOUT_API_URL=http://127.0.0.1:4010/api/v1` bo'lishi kerak.
+E2E uchun `.env.local` da `CHECKOUT_API_KEY=test_checkout_key`, `CHECKOUT_API_URL=http://127.0.0.1:4010/api/v1`
+va `TELEGRAM_API_URL=http://127.0.0.1:4020` bo'lishi kerak.

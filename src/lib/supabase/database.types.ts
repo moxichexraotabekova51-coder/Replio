@@ -1465,6 +1465,12 @@ export type Database = {
       handle_update: { Args: { p_bot_id: string; p_secret: string; p_from: Json; p_cached_version?: number; p_subscribed?: boolean }; Returns: Json };
       log_update: { Args: { p: Json }; Returns: undefined };
       publish_flow: { Args: { p_flow_id: string; p_draft: Json; p_compiled: Json }; Returns: number };
+      contact_filter_sql: { Args: { p_filter: Json; p_search: string }; Returns: string };
+      my_accounts: { Args: { p_roles?: Database["public"]["Enums"]["member_role"][] }; Returns: string[] };
+      contacts_page: { Args: { p_account_id: string; p_filter?: Json; p_search?: string; p_before?: string; p_before_id?: string; p_limit?: number }; Returns: { id: string; first_name: string; last_name: string; username: string; avatar_url: string; subscribed_at: string; last_interaction_at: string; is_subscribed: boolean; tags: Json }[] };
+      contacts_count: { Args: { p_account_id: string; p_filter?: Json; p_search?: string }; Returns: number };
+      contacts_export: { Args: { p_account_id: string; p_filter?: Json; p_search?: string }; Returns: { id: string; tg_user_id: number; first_name: string; last_name: string; username: string; language_code: string; subscribed_at: string; last_interaction_at: string; is_subscribed: boolean; tags: string; fields: Json }[] };
+      contacts_bulk: { Args: { p_account_id: string; p_ids: string[]; p_filter: Json; p_search: string; p_action: string; p_arg?: Json }; Returns: number };
     };
     Enums: {
       member_role: "admin" | "editor" | "agent" | "viewer";

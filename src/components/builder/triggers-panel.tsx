@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FieldError, Input, Label, NativeSelect } from "@/components/ui/input";
+import { FieldError, Label, NativeSelect } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { fmt } from "@/lib/i18n";
 import { useT } from "@/lib/i18n/provider";

@@ -6,7 +6,7 @@ test.describe.configure({ mode: "serial" });
 
 const TG = "http://127.0.0.1:4020";
 const TOKEN = `${7000000000 + Math.floor(Math.random() * 99999999)}:AAHtestTOKENabcdefghijklmnopqrstuvwxyz12`;
-let userSeq = 900000;
+let userSeq = 900000 + Math.floor(Math.random() * 1_000_000) * 100;
 
 async function sendUpdate(page: Page, update: Record<string, unknown>) {
   const res = await page.request.post(`${TG}/__update`, { data: { token: TOKEN, update } });
@@ -26,6 +26,7 @@ async function sentTo(page: Page, chatId: number) {
 }
 
 test("bot ulash, Welcome, kalit so'z, Default Reply — javob ≤ 2 s", async ({ page }) => {
+  await page.request.post(`${TG}/__reset`);
   const { accountId } = await signupAndOnboard(page, "Bot Test", "Bot akkaunt");
   // Onboarding'dan keyin Settings → Telegram ochiladi
   await expect(page).toHaveURL(/\/app\/settings\/telegram$/);
@@ -72,7 +73,7 @@ test("bot ulash, Welcome, kalit so'z, Default Reply — javob ≤ 2 s", async ({
   await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/p2-02-builder.png` });
   await page.getByRole("button", { name: "Set Live" }).click();
-  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "LIVE" })).toBeVisible();
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "LIVE" }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Publish" })).toBeVisible();
 
   // Kalit so'z avtomatlashtirishi (shablondan) → Set Live
@@ -119,7 +120,7 @@ test("bot ulash, Welcome, kalit so'z, Default Reply — javob ≤ 2 s", async ({
 
   // ── Tezlik: 20 ta ketma-ket xabar, p99 ≤ 2000 ms
   const times: number[] = [];
-  for (let i = 0; i < 20; i++) times.push((await sendUpdate(page, textUpdate(900500 + i, i % 2 ? "narx" : "/start", `User${i}`))).ms);
+  for (let i = 0; i < 20; i++) times.push((await sendUpdate(page, textUpdate(userSeq + 500 + i, i % 2 ? "narx" : "/start", `User${i}`))).ms);
   times.sort((a, b) => a - b);
   const p99 = times[Math.ceil(times.length * 0.99) - 1];
   console.log(`bot latency p50=${times[Math.floor(times.length / 2)].toFixed(0)}ms p99=${p99.toFixed(0)}ms`);
@@ -144,4 +145,102 @@ test("bot ulash, Welcome, kalit so'z, Default Reply — javob ≤ 2 s", async ({
   await page.getByRole("button", { name: "Uzish" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Uzish" }).click();
   await expect(page.getByText("Telegram bot ulanmagan")).toBeVisible();
+});
+
+test("Contacts: qidiruv, filtr (AND/OR), ommaviy amallar, CSV, profil", async ({ page }) => {
+  const { accountId } = await signupAndOnboard(page, "Kontakt Test", "Kontakt akkaunt");
+  const rows = Array.from({ length: 120 }, (_, i) => ({
+    account_id: accountId,
+    tg_user_id: 500000 + i,
+    first_name: i % 2 ? `Aziz${i}` : `Malika${i}`,
+    username: `k${i}`,
+    subscribed_at: new Date(Date.now() - i * 60_000).toISOString(),
+    last_interaction_at: new Date(Date.now() - i * 60_000).toISOString(),
+  }));
+  await admin.from("contacts").insert(rows);
+  const { data: tag } = await admin.from("tags").insert({ account_id: accountId, name: "vip" }).select("id").single();
+  await admin.from("custom_fields").insert({ account_id: accountId, name: "shahar", type: "text" });
+  const { data: some } = await admin.from("contacts").select("id").eq("account_id", accountId).like("first_name", "Aziz%").limit(10);
+  await admin.from("contact_tags").insert(some!.map((c) => ({ contact_id: c.id, tag_id: tag!.id })));
+
+  await page.goto("/app/contacts");
+  await expect(page.getByText("120 ta kontakt")).toBeVisible();
+
+  // Qidiruv
+  await page.getByPlaceholder("Ism yoki username bo'yicha qidirish").fill("malika1");
+  await expect(page.getByText(/^\d+ ta kontakt$/)).toHaveText("15 ta kontakt");
+  await page.getByPlaceholder("Ism yoki username bo'yicha qidirish").fill("");
+  await expect(page.getByText("120 ta kontakt")).toBeVisible();
+
+  // + Filter: Tag = vip
+  await page.getByRole("button", { name: "Filter" }).click();
+  await page.getByRole("combobox", { name: "Tag" }).selectOption({ label: "vip" });
+  await page.getByRole("button", { name: "Filtr qo'shish" }).click();
+  await expect(page.getByText("10 ta kontakt")).toBeVisible();
+  // + System field: first_name contains "malika" → AND → 0, OR → 70
+  await page.getByRole("button", { name: "Filter" }).click();
+  await page.getByRole("button", { name: "System field" }).click();
+  await page.getByRole("combobox", { name: "System field" }).selectOption("first_name");
+  await page.getByRole("combobox", { name: "Taqqoslash" }).selectOption("contains");
+  await page.getByLabel("Qiymat").fill("malika");
+  await page.getByRole("button", { name: "Filtr qo'shish" }).click();
+  await expect(page.getByText("Hech narsa topilmadi")).toBeVisible();
+  await page.getByRole("button", { name: "AND" }).click();
+  await expect(page.getByText("70 ta kontakt")).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/p2-04-contacts-filter.png` });
+  await page.getByRole("button", { name: "Filtrlarni tozalash" }).click();
+  await expect(page.getByText("120 ta kontakt")).toBeVisible();
+
+  // Hammasini tanlash → filtrga mos barchasi → teg qo'shish
+  await page.getByRole("checkbox", { name: "Hammasini tanlash" }).click();
+  await page.getByRole("button", { name: /Filtrga mos barcha 120 ta kontaktni tanlash/ }).click();
+  await expect(page.getByText("120 ta tanlandi")).toBeVisible();
+  const bar = page.getByRole("toolbar", { name: "Ommaviy amallar" });
+  await bar.getByRole("button", { name: "Teg qo'shish" }).click();
+  await page.getByPlaceholder("Qidirish", { exact: true }).fill("yangi");
+  await page.getByRole("button", { name: /Teg yaratish: “yangi”/ }).click();
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "120 ta kontakt yangilandi" })).toBeVisible();
+  const { count: tagged } = await admin.from("contact_tags").select("contact_id", { count: "exact", head: true }).in("tag_id", [(await admin.from("tags").select("id").eq("account_id", accountId).eq("name", "yangi").single()).data!.id]);
+  expect(tagged).toBe(120);
+
+  // Bitta qator tanlab — Field o'rnatish
+  await page.getByRole("checkbox", { name: "Malika0", exact: true }).click();
+  await bar.getByRole("button", { name: "Field o'rnatish" }).click();
+  await page.getByRole("combobox", { name: "Maydon nomi" }).selectOption({ label: "shahar" });
+  await page.getByLabel("Qiymat").fill("Toshkent");
+  await page.getByRole("button", { name: "Qo'llash" }).click();
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "1 ta kontakt yangilandi" })).toBeVisible();
+
+  // CSV eksport (tanlanganlar)
+  await page.getByRole("checkbox", { name: "Malika0", exact: true }).click();
+  await page.getByRole("checkbox", { name: "Aziz1", exact: true }).click();
+  const [download] = await Promise.all([page.waitForEvent("download"), bar.getByRole("button", { name: "CSV eksport" }).click()]);
+  const csv = await (await download.createReadStream()).toArray().then((c) => Buffer.concat(c).toString("utf8"));
+  expect(csv.split("\r\n")).toHaveLength(3);
+  expect(csv).toContain("Toshkent");
+  expect(csv).toContain("Aziz1");
+
+  // Profil (drawer): teg olib tashlash, maydon tahrirlash, Inbox'da ochish
+  await bar.getByRole("button", { name: "Tanlovni bekor qilish" }).click();
+  await page.getByText("Malika0", { exact: true }).click();
+  const drawer = page.getByRole("dialog");
+  await expect(drawer.getByText("Toshkent")).toBeHidden(); // input qiymati
+  await expect(drawer.getByRole("textbox").first()).toHaveValue("Toshkent");
+  await drawer.getByRole("textbox").first().fill("Samarqand");
+  await drawer.getByRole("textbox").first().press("Enter");
+  const { data: m0 } = await admin.from("contacts").select("id").eq("account_id", accountId).eq("tg_user_id", 500000).single();
+  await expect.poll(async () => (await admin.from("contact_field_values").select("value").eq("contact_id", m0!.id).single()).data?.value).toBe("Samarqand");
+  await drawer.getByRole("button", { name: "yangi tegini olib tashlash" }).click();
+  await expect(drawer.getByRole("button", { name: "yangi tegini olib tashlash" })).toBeHidden();
+  await page.screenshot({ path: `${SHOTS}/p2-05-contact-drawer.png` });
+  await drawer.getByRole("link", { name: "Inbox'da ochish" }).click();
+  await expect(page).toHaveURL(/\/app\/inbox\?c=/);
+  await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
+
+  // Ommaviy o'chirish
+  await page.goto("/app/contacts");
+  await page.getByRole("checkbox", { name: "Aziz1", exact: true }).click();
+  await page.getByRole("toolbar", { name: "Ommaviy amallar" }).getByRole("button", { name: "O'chirish", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "O'chirish" }).click();
+  await expect(page.getByText("119 ta kontakt")).toBeVisible();
 });

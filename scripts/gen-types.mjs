@@ -64,7 +64,7 @@ function tsType(udt) {
   return arr ? `${t}[]` : t;
 }
 const pgToUdt = (t) =>
-  ({
+  String(t).endsWith("[]") ? "_" + pgToUdt(String(t).slice(0, -2)) : ({
     uuid: "uuid",
     text: "text",
     integer: "int4",

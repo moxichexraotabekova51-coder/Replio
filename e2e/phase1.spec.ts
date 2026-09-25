@@ -151,7 +151,7 @@ test("My Automations: yaratish, papka, filtr, saralash, grid, ommaviy amallar, T
   await page.keyboard.type("Salomlashish");
   await page.keyboard.press("Enter");
   await expect(page.getByText("Salomlashish")).toBeVisible();
-  await expect(page.getByText("Saqlandi")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
   // Breadcrumb → ro'yxat
   await page.getByRole("link", { name: "Automations" }).click();
   await expect(page).toHaveURL(/\/app\/automation$/);
