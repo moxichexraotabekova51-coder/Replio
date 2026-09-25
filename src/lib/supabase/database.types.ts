@@ -85,6 +85,7 @@ export type Database = {
           avatar_url: string | null;
           settings: Json;
           created_at: string;
+          flows_version: number;
         };
         Insert: {
           id?: string;
@@ -96,6 +97,7 @@ export type Database = {
           avatar_url?: string | null;
           settings?: Json;
           created_at?: string;
+          flows_version?: number;
         };
         Update: {
           id?: string;
@@ -107,6 +109,7 @@ export type Database = {
           avatar_url?: string | null;
           settings?: Json;
           created_at?: string;
+          flows_version?: number;
         };
         Relationships: [
           {
@@ -1443,22 +1446,25 @@ export type Database = {
       can_edit: { Args: { aid: string }; Returns: boolean };
       can_chat: { Args: { aid: string }; Returns: boolean };
       is_admin: { Args: { aid: string }; Returns: boolean };
-      create_account: { Args: { p_name: string; p_timezone?: string }; Returns: string };
-      tags_with_counts: { Args: { p_account_id: string }; Returns: { id: string; name: string; folder: string; created_at: string; contacts: number }[] };
       duplicate_flow: { Args: { p_flow_id: string }; Returns: string };
+      create_account: { Args: { p_name: string; p_timezone?: string }; Returns: string };
       create_flow: { Args: { p_account_id: string; p_template_id?: string; p_folder_id?: string }; Returns: string };
+      dashboard_stats: { Args: { p_account_id: string; p_days?: number }; Returns: Json };
       contact_account: { Args: { cid: string }; Returns: string };
+      find_user_id_by_email: { Args: { p_email: string }; Returns: string };
       flow_account: { Args: { fid: string }; Returns: string };
       sequence_account: { Args: { sid: string }; Returns: string };
+      account_member_emails: { Args: { p_account_id: string }; Returns: { user_id: string; email: string }[] };
       activate_payment: { Args: { p_payment_id: string; p_raw?: Json }; Returns: boolean };
       refresh_daily_stats: { Args: { p_days?: number }; Returns: undefined };
-      dashboard_stats: { Args: { p_account_id: string; p_days?: number }; Returns: Json };
       ensure_basic_flow: { Args: { p_account_id: string; p_kind: string }; Returns: string };
       purge_trash: { Args: Record<PropertyKey, never>; Returns: undefined };
       inbox_search: { Args: { p_account_id: string; p_query: string; p_limit?: number }; Returns: string[] };
-      account_member_emails: { Args: { p_account_id: string }; Returns: { user_id: string; email: string }[] };
-      find_user_id_by_email: { Args: { p_email: string }; Returns: string };
+      tags_with_counts: { Args: { p_account_id: string }; Returns: { id: string; name: string; folder: string; created_at: string; contacts: number }[] };
       latency_summary: { Args: { p_account_id: string; p_hours?: number }; Returns: Json };
+      handle_update: { Args: { p_bot_id: string; p_secret: string; p_from: Json; p_cached_version?: number; p_subscribed?: boolean }; Returns: Json };
+      log_update: { Args: { p: Json }; Returns: undefined };
+      publish_flow: { Args: { p_flow_id: string; p_draft: Json; p_compiled: Json }; Returns: number };
     };
     Enums: {
       member_role: "admin" | "editor" | "agent" | "viewer";

@@ -33,7 +33,8 @@ export async function createAccount(input: { name: string; timezone?: string }):
   });
   if (error || !data) return { error: error?.message ?? "failed" };
   (await cookies()).set(ACCOUNT_COOKIE, data, cookieOpts);
-  redirect("/app");
+  // ManyChat'dagidek: akkaunt yaratilgach darhol kanalni (Telegram botni) ulash
+  redirect("/app/settings/telegram");
 }
 
 export async function signOut() {

@@ -21,7 +21,7 @@ export async function signupAndOnboard(page: Page, name = "Ali Valiyev", account
   await page.waitForURL(/\/app\/onboarding/);
   await page.fill("#acc-name", account);
   await page.click("button[type=submit]");
-  await page.waitForURL(/\/app$/);
+  await page.waitForURL(/\/app\/settings\/telegram$/);
   const { data } = await admin.from("accounts").select("id, owner_id").eq("name", account).order("created_at", { ascending: false }).limit(1).single();
   return { email, accountId: data!.id, userId: data!.owner_id };
 }

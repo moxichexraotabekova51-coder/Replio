@@ -28,8 +28,18 @@ export type AppContext = {
   billing: BillingState;
   plan: Plan;
   plans: Plan[];
-  bot: { id: string; username: string; first_name: string | null; status: Enums<"bot_status">; webhook_ok: boolean } | null;
+  bot: BotSummary | null;
+  bots: BotSummary[];
   hasUnread: boolean;
+};
+
+export type BotSummary = {
+  id: string;
+  username: string;
+  first_name: string | null;
+  status: Enums<"bot_status">;
+  webhook_ok: boolean;
+  last_error: string | null;
 };
 
 export type SessionContext =
@@ -50,7 +60,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
     supabase
       .from("account_members")
       .select(
-        "role, accounts!inner(id, name, avatar_url, timezone, locale, settings, owner_id, plan_id, created_at, subscriptions(*), bots(id, username, first_name, status, webhook_ok))",
+        "role, accounts!inner(id, name, avatar_url, timezone, locale, settings, owner_id, plan_id, created_at, subscriptions(*), bots(id, username, first_name, status, webhook_ok, last_error, created_at))",
       )
       .eq("user_id", user.id),
     supabase.from("plans").select("*").order("sort_order"),
@@ -98,7 +108,9 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
     .eq("is_unread", true)
     .eq("live_chat_status", "open");
 
-  const bot = a.bots?.[0] ?? null;
+  const bots: BotSummary[] = [...(a.bots ?? [])]
+    .sort((x, y) => x.created_at.localeCompare(y.created_at))
+    .map((b) => ({ id: b.id, username: b.username, first_name: b.first_name, status: b.status, webhook_ok: b.webhook_ok, last_error: b.last_error }));
 
   return {
     kind: "ready",
@@ -119,9 +131,8 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
     billing: billingState(subscription),
     plan,
     plans,
-    bot: bot
-      ? { id: bot.id, username: bot.username, first_name: bot.first_name, status: bot.status, webhook_ok: bot.webhook_ok }
-      : null,
+    bot: bots[0] ?? null,
+    bots,
     hasUnread: (unread ?? 0) > 0,
   };
 });

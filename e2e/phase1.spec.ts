@@ -6,6 +6,7 @@ test.describe.configure({ mode: "serial" });
 
 test("rail: navigatsiya, logo, kengaytirish, menyular, PRO", async ({ page }) => {
   await signupAndOnboard(page);
+  await page.goto("/app");
   await page.screenshot({ path: `${SHOTS}/01-home.png` });
 
   // Home / Contacts / Automation / Inbox / Broadcasting / Settings
@@ -52,7 +53,7 @@ test("rail: navigatsiya, logo, kengaytirish, menyular, PRO", async ({ page }) =>
   // Ikkinchi akkaunt → almashtirish
   await page.fill("#acc-name", "Ikkinchi bot");
   await page.click("button[type=submit]");
-  await page.waitForURL(/\/app$/);
+  await page.waitForURL(/\/app\/settings\/telegram$/);
   await expect(page.getByRole("button", { name: "Akkauntlar" })).toContainText("IB");
   await page.getByRole("button", { name: "Akkauntlar" }).click();
   await page.getByRole("menuitem", { name: /Ali do'koni/ }).click();
@@ -111,6 +112,7 @@ test("rail: navigatsiya, logo, kengaytirish, menyular, PRO", async ({ page }) =>
 
 test("banner: obuna tugaganda, ✕ yopadi, Obunani yangilash", async ({ page }) => {
   const { accountId } = await signupAndOnboard(page, "Banner Test", "Banner akkaunt");
+  await page.goto("/app");
   await admin
     .from("subscriptions")
     .update({ status: "active", current_period_end: new Date(Date.now() - 86_400_000).toISOString() })
