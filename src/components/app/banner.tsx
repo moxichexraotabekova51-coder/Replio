@@ -3,7 +3,9 @@
 import { AlertTriangle, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/providers/app-provider";
+import { GRACE_DAYS } from "@/lib/billing";
 import { fmt } from "@/lib/i18n";
+import { formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/provider";
 import { usePricingModal } from "@/lib/stores/ui";
 import { startCheckout } from "./checkout";
@@ -26,13 +28,21 @@ export function SubscriptionBanner() {
     }
   }, [app.account.id]);
 
-  if (!app.billing.showBanner || dismissed) return null;
+  const over = app.overLimit > 0 && !app.billing.expired;
+  if ((!app.billing.showBanner && !over) || dismissed) return null;
 
-  const text = app.billing.expired
-    ? t.banner.expired
-    : fmt(app.billing.trialing ? t.banner.trialEnding : t.banner.expiring, { days: Math.max(app.billing.daysLeft, 0) });
+  const graceDays = GRACE_DAYS + app.billing.daysLeft; // daysLeft ≤ 0 grace ichida
+  const text = over && !app.billing.showBanner
+    ? fmt(t.banner.overLimit, { n: formatNumber(app.overLimit), limit: formatNumber(app.plan.contact_limit) })
+    : app.billing.expired
+      ? app.billing.paused
+        ? t.banner.expired
+        : fmt(t.banner.grace, { days: Math.max(graceDays, 1) })
+      : fmt(app.billing.trialing ? t.banner.trialEnding : t.banner.expiring, { days: Math.max(app.billing.daysLeft, 0) });
+  const overOnly = over && !app.billing.showBanner;
 
   async function renew() {
+    if (overOnly) return showPricing("pro");
     // Sinov muddatida tarif tanlanmagan — modalni ochamiz; aks holda joriy tarif uchun to'g'ridan-to'g'ri to'lov
     if (app.billing.trialing || app.account.role !== "admin") {
       showPricing(app.plan?.id);
@@ -51,7 +61,7 @@ export function SubscriptionBanner() {
       <p className="min-w-0 flex-1">
         {text}{" "}
         <button onClick={renew} disabled={busy} className="font-medium text-[#d4d4d8] hover:underline disabled:opacity-60">
-          {t.banner.renew}
+          {overOnly ? t.banner.upgrade : t.banner.renew}
         </button>
       </p>
       <button

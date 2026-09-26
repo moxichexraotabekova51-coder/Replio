@@ -36,6 +36,17 @@ export function LogsSection() {
     refetchInterval: 30_000,
   });
 
+  const perf = useQuery({
+    queryKey: [app.account.id, "logs", "perf"],
+    queryFn: async () => {
+      const { data, error } = await createClient().rpc("perf_summary", { p_account_id: app.account.id, p_hours: 24 });
+      if (error) throw error;
+      return data ?? [];
+    },
+    refetchInterval: 30_000,
+  });
+  const KIND: Record<string, string> = { web_vital: "Web Vitals", nav: t.settings.logsNav, api: "API", error: t.settings.logsErrors };
+
   const s = q.data;
   return (
     <>
@@ -73,14 +84,14 @@ export function LogsSection() {
 
       <h3 className="mb-3 mt-8 text-[16px] font-semibold">{t.settings.logsPerf}</h3>
       <Card className="overflow-x-auto p-0">
-        {!s ? (
+        {!perf.data ? (
           <div className="p-6">
             <Skeleton className="h-10 w-full" />
           </div>
-        ) : s.web.length === 0 ? (
+        ) : perf.data.length === 0 ? (
           <p className="p-6 text-sm text-muted">{t.settings.logsEmpty}</p>
         ) : (
-          <table className="w-full min-w-[520px] text-sm">
+          <table className="w-full min-w-[620px] text-sm" data-testid="perf-table">
             <thead className="bg-bg-subtle text-left text-[12px] text-muted">
               <tr className="h-10">
                 <th className="px-6 font-medium">{t.common.name}</th>
@@ -88,16 +99,21 @@ export function LogsSection() {
                 <th className="px-4 text-right font-medium">p50</th>
                 <th className="px-4 text-right font-medium">p95</th>
                 <th className="px-4 text-right font-medium">p99</th>
+                <th className="px-4 text-right font-medium">&gt; 2 s</th>
               </tr>
             </thead>
             <tbody>
-              {s.web.map((w) => (
-                <tr key={w.name} className="h-11 border-t border-border">
-                  <td className="px-6 font-medium">{w.name}</td>
-                  <td className="px-4 text-right text-muted">{formatNumber(w.count)}</td>
-                  <td className="px-4 text-right"><Ms v={w.p50} /></td>
-                  <td className="px-4 text-right"><Ms v={w.p95} /></td>
-                  <td className="px-4 text-right"><Ms v={w.p99} /></td>
+              {perf.data.map((w) => (
+                <tr key={`${w.kind}:${w.name}`} className="h-11 border-t border-border">
+                  <td className="px-6">
+                    <span className="mr-2 rounded-[4px] bg-bg-muted px-1.5 py-0.5 text-[11px] font-medium">{KIND[w.kind] ?? w.kind}</span>
+                    <span className="font-medium">{w.name}</span>
+                  </td>
+                  <td className="px-4 text-right text-muted">{formatNumber(Number(w.n))}</td>
+                  <td className="px-4 text-right">{w.name === "CLS" ? (w.p50 / 1000).toFixed(3) : <Ms v={w.p50} />}</td>
+                  <td className="px-4 text-right">{w.name === "CLS" ? (w.p95 / 1000).toFixed(3) : <Ms v={w.p95} />}</td>
+                  <td className="px-4 text-right">{w.name === "CLS" ? (w.p99 / 1000).toFixed(3) : <Ms v={w.p99} />}</td>
+                  <td className={cn("px-4 text-right", Number(w.over_2s) > 0 && "font-bold")}>{w.name === "CLS" ? "—" : formatNumber(Number(w.over_2s))}</td>
                 </tr>
               ))}
             </tbody>

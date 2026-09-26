@@ -79,6 +79,9 @@ export const uz = {
   ] as [string, string][],
   banner: {
     expired: "Obunangiz muddati tugadi, avtomatlashtirishlar to'xtatildi. Davom ettirish uchun obunani yangilang.",
+    grace: "Obunangiz muddati tugadi. {days} kundan so'ng bot to'xtatiladi — obunani yangilang.",
+    overLimit: "{n} ta kontakt tarif limitidan ({limit}) oshdi — ularga avtomatlashtirishlar ishlamaydi.",
+    upgrade: "Upgrade",
     expiring: "Obunangiz muddati {days} kundan so'ng tugaydi. Avtomatlashtirishlar to'xtab qolmasligi uchun obunani yangilang.",
     trialEnding: "Sinov muddati {days} kundan so'ng tugaydi. Avtomatlashtirishlar to'xtab qolmasligi uchun tarifni tanlang.",
     renew: "Obunani yangilash",
@@ -972,6 +975,7 @@ export const uz = {
     apiCreatedAt: "Yaratilgan: {date}",
     apiProOnly: "API faqat Pro tarifida mavjud",
     logsLatency: "Bot javob tezligi",
+    logsNav: "Sahifa o'tishi",
     logsPerf: "Sayt tezligi",
     logsErrors: "Xatolar",
     logsSlow: "2 s dan sekin",

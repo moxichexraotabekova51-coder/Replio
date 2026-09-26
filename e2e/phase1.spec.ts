@@ -381,6 +381,9 @@ test("Inbox: ro'yxat, filtrlar, chat, label, Favorites, Close/Reopen", async ({ 
   await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
   await page.getByRole("button", { name: "Reopen" }).click();
   await expect(page.getByRole("button", { name: "Close" })).toBeVisible();
+  // Reopen'dan keyin ro'yxat qayta yuklanadi — ikkala suhbat qaytguncha kutamiz
+  await expect(page.getByRole("checkbox", { name: /Dilnoza/ })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: /Jasur/ })).toBeVisible();
 
   // ☐ → ommaviy: O'qilgan qilish
   await page.getByRole("checkbox", { name: "Hammasini tanlash" }).click();

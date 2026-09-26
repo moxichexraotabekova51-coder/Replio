@@ -31,6 +31,8 @@ export type AppContext = {
   bot: BotSummary | null;
   bots: BotSummary[];
   hasUnread: boolean;
+  /** tarif limitidan oshgan (flowlar ishlamaydigan) kontaktlar soni */
+  overLimit: number;
 };
 
 export type BotSummary = {
@@ -101,12 +103,16 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
   const plans = plansRes.data ?? [];
   const plan = plans.find((p) => p.id === (subscription?.plan_id ?? a.plan_id)) ?? plans[0];
 
-  const { count: unread } = await supabase
-    .from("contacts")
-    .select("id", { count: "exact", head: true })
-    .eq("account_id", a.id)
-    .eq("is_unread", true)
-    .eq("live_chat_status", "open");
+  const [{ count: unread }, { count: overLimit }] = await Promise.all([
+    supabase
+      .from("contacts")
+      .select("id", { count: "exact", head: true })
+      .eq("account_id", a.id)
+      .eq("is_unread", true)
+      .eq("live_chat_status", "open"),
+    // Tarif limitidan oshgan kontaktlar (qisman indeks: contacts_over_limit_idx)
+    supabase.from("contacts").select("id", { count: "exact", head: true }).eq("account_id", a.id).eq("over_limit", true),
+  ]);
 
   const bots: BotSummary[] = [...(a.bots ?? [])]
     .sort((x, y) => x.created_at.localeCompare(y.created_at))
@@ -134,5 +140,6 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
     bot: bots[0] ?? null,
     bots,
     hasUnread: (unread ?? 0) > 0,
+    overLimit: overLimit ?? 0,
   };
 });

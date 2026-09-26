@@ -18,10 +18,12 @@ broadcast, Live Chat va obunachilar bazasi. Interfeys — oq-qora (monoxrom), ti
 - [x] **2-faza** — Telegram bot ulash (shifrlangan token, secret_token'li webhook), `tg-webhook` Edge Function
   (bitta RPC, 60 s kesh, javob webhook'ning o'zida), Welcome / Default Reply / Keywords / Command, Basic builder,
   Contacts (AND/OR filtr, ommaviy amallar, CSV, profil paneli).
-- [ ] 3-faza — Flow builder va runtime
-- [ ] 4-faza — Triggerlar, shartlar, Sequences, Smart Delay, pg_cron worker
-- [ ] 5-faza — Live Chat (Realtime), Broadcasting, Growth Tools, shablonlar, Team
-- [ ] 6-faza — Limitlar, landing / pricing, latency monitoring, yuklama testi
+- [x] **3-faza** — Flow builder (React Flow canvas, sidebar editorlar, Preview), runtime v2 (tugmalar, Data Collection,
+  Actions, External Request, Condition, Randomizer, Smart Delay, Start Automation).
+- [x] **4-faza** — 11 turdagi trigger + shartlar, Sequences, fon ishlari (pg_cron → Edge Function worker).
+- [x] **5-faza** — Live Chat (Realtime), Broadcasting (25 xabar/s), Growth Tools (ref URL, QR, widget), shablonlar, Team.
+- [x] **6-faza** — limitlar va grace, landing + pricing (SSG/ISR), to'lovlarni tekshirish cron'i, obuna eslatmalari,
+  Web Vitals / API monitoringi, yuklama testi va 8-bo'lim o'lchovi — natijalar: [`docs/perf-report.md`](docs/perf-report.md).
 
 ## O'rnatish (lokal)
 
@@ -83,6 +85,17 @@ pg_cron har soniyada navbatni tekshiradi va ish bo'lsagina `POST /functions/v1/t
    webhook `POST /api/checkout/webhook` → **har doim** `status_payment` bilan qayta tekshiriladi, summa solishtiriladi →
    `activate_payment()` (idempotent) → obuna faollashadi. `return_url` sahifasi ham statusni o'zi tekshiradi.
 
+To'lovlarni tekshirish (reconcile) va obuna eslatmalari uchun pg_cron Next.js'ni chaqiradi — sayt manzilini bir marta yozing:
+
+```sql
+insert into private.settings (key, value) values ('site_url', 'https://replio.uz')
+on conflict (key) do update set value = excluded.value;
+```
+
+pg_cron har 5 daqiqada: obuna holatlarini yangilaydi (active → past_due → 3 kundan keyin expired), 30 daqiqadan eski
+`pending` to'lovlar yoki eslatma kerak bo'lsa `POST /api/cron/billing` (`x-cron-secret` — `private.settings.cron_secret`).
+Eslatmalar: Telegram (admin o'z Telegram'ini Preview orqali ulagan bo'lsa) va email (`RESEND_API_KEY`, `EMAIL_FROM`).
+
 ## Deploy (Vercel)
 
 1. Repozitoriyni Vercel'ga ulang, **Function Region: `fra1` (Frankfurt)**.
@@ -101,6 +114,17 @@ psql "$DB_URL" -c "insert into private.settings values ('functions_url','http://
 deno test supabase/functions/_shared/   # runtime unit testlari
 npm run dev &
 CHROME_PATH=/path/to/chromium npm run e2e   # 13-bo'lim bo'yicha tugmalarni bosib tekshiradi
+```
+
+### Tezlik (8-bo'lim) va yuklama testi
+
+```bash
+# Production build (dev server bilan parallel)
+NEXT_DIST_DIR=.next-prod npx next build && NEXT_DIST_DIR=.next-prod npx next start -p 3100 &
+E2E_BASE_URL=http://localhost:3100 npx playwright test e2e/perf.spec.ts   # → test-results/perf-report.md
+
+# 100 parallel foydalanuvchi (haqiqiy yoki lokal Edge Function'ga)
+node scripts/load-test.mjs --url https://<ref>.supabase.co/functions/v1/tg-webhook/<bot_id> --secret <webhook_secret> --users 100 --rounds 3 --text narx
 ```
 
 E2E uchun `.env.local` da `CHECKOUT_API_KEY=test_checkout_key`, `CHECKOUT_API_URL=http://127.0.0.1:4010/api/v1`

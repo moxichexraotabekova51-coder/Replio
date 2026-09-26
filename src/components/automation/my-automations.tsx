@@ -128,6 +128,11 @@ export function MyAutomations() {
   }, [allFlows]);
 
   const openFlow = useCallback((f: FlowRow) => router.push(`/app/automation/${f.id}`), [router]);
+  // Builder marshruti (JS + React Flow) oldindan yuklanadi — ro'yxatdan ochish tez
+  useEffect(() => {
+    const first = allFlows[0];
+    if (first) router.prefetch(`/app/automation/${first.id}`);
+  }, [allFlows, router]);
 
   const moveFlows = useCallback(
     (ids: string[], target: string | null) => {

@@ -32,6 +32,12 @@ createServer(async (req, res) => {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     return res.end(`<h1>Mock checkout</h1><p id="amount">${p.amount}</p><p id="desc">${p.description}</p><a id="return" href="${p.return_url}">return</a>`);
   }
+  // Webhooksiz to'lov (webhook yo'qolgan holat — reconcile cron sinovi)
+  const silent = req.url.match(/^\/__pay_silent\/([\w-]+)/);
+  if (silent && payments.has(silent[1])) {
+    payments.get(silent[1]).status = "paid";
+    return send(200, { ok: true });
+  }
   const paid = req.url.match(/^\/__pay\/([\w-]+)/);
   if (paid && payments.has(paid[1])) {
     const p = payments.get(paid[1]);

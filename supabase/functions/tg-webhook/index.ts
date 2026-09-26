@@ -83,6 +83,12 @@ async function tg(token: string, method: string, payload: Record<string, unknown
 /** 429 — retry_after kutib qayta; HTML xato — oddiy matn bilan qayta */
 async function sendTg(token: string, method: string, payload: Record<string, unknown>): Promise<TgResponse> {
   let r = await tg(token, method, payload);
+  // Tarmoq xatosi (javob umuman kelmadi: connection reset, timeout) — 2 marta qisqa kutib qayta
+  for (const wait of [250, 750]) {
+    if (r.ok || r.error_code !== undefined) break;
+    await new Promise((res) => setTimeout(res, wait));
+    r = await tg(token, method, payload);
+  }
   if (!r.ok && r.error_code === 429 && r.parameters?.retry_after) {
     await new Promise((res) => setTimeout(res, (r.parameters!.retry_after! + 0.2) * 1000));
     r = await tg(token, method, payload);

@@ -42,11 +42,12 @@ export const builderKeys = {
   fields: (acc: string) => [acc, "fields", "all"] as const,
 };
 
-export function useFlow(id: string) {
+export function useFlow(id: string, initial?: FlowDetail) {
   const acc = useAccountId();
   return useQuery({
     queryKey: builderKeys.flow(acc, id),
     staleTime: Infinity,
+    initialData: initial,
     queryFn: async () => {
       const { data, error } = await createClient()
         .from("flows")
@@ -59,10 +60,12 @@ export function useFlow(id: string) {
   });
 }
 
-export function useFlowTriggers(flowId: string) {
+export function useFlowTriggers(flowId: string, initial?: FlowTrigger[]) {
   const acc = useAccountId();
   return useQuery({
     queryKey: builderKeys.triggers(acc, flowId),
+    initialData: initial,
+    staleTime: initial ? 30_000 : 0,
     queryFn: async () => {
       const { data, error } = await createClient()
         .from("triggers")

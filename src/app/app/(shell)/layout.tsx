@@ -4,6 +4,7 @@ import { SubscriptionBanner } from "@/components/app/banner";
 import { MobileBottomNav, MobileTopBar } from "@/components/app/mobile-nav";
 import { PricingDialog } from "@/components/app/pricing-dialog";
 import { Rail } from "@/components/app/rail";
+import { PerfReporter } from "@/components/app/perf-reporter";
 import { LiveChatBridge } from "@/components/inbox/live-chat-bridge";
 import { AppProvider } from "@/components/providers/app-provider";
 import { getSessionContext } from "@/lib/server/app-context";
@@ -30,6 +31,7 @@ export default async function ShellLayout({ children }: { children: React.ReactN
       </div>
       <PricingDialog />
       <LiveChatBridge />
+      <PerfReporter />
     </AppProvider>
   );
 }

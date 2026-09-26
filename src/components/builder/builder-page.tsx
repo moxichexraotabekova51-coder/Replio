@@ -39,10 +39,10 @@ import { TriggersPanel } from "./triggers-panel";
 
 const AUTOSAVE_MS = 800;
 
-export function BuilderPage({ flowId }: { flowId: string }) {
+export function BuilderPage({ flowId, initialFlow, initialTriggers }: { flowId: string; initialFlow?: FlowDetail; initialTriggers?: FlowTrigger[] }) {
   const t = useT();
-  const flow = useFlow(flowId);
-  const triggers = useFlowTriggers(flowId);
+  const flow = useFlow(flowId, initialFlow);
+  const triggers = useFlowTriggers(flowId, initialTriggers);
   const init = useEditor((s) => s.init);
   const ready = useEditor((s) => s.flowId === flowId);
 

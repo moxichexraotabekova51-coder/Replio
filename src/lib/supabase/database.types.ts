@@ -172,6 +172,38 @@ export type Database = {
           },
         ];
       };
+      billing_reminders: {
+        Row: {
+          account_id: string;
+          period_end: string;
+          days_before: number;
+          channels: Json;
+          sent_at: string;
+        };
+        Insert: {
+          account_id: string;
+          period_end: string;
+          days_before: number;
+          channels?: Json;
+          sent_at?: string;
+        };
+        Update: {
+          account_id?: string;
+          period_end?: string;
+          days_before?: number;
+          channels?: Json;
+          sent_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "billing_reminders_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: false;
+            referencedRelation: "accounts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       bots: {
         Row: {
           id: string;
@@ -1522,7 +1554,6 @@ export type Database = {
       flow_account: { Args: { fid: string }; Returns: string };
       sequence_account: { Args: { sid: string }; Returns: string };
       account_member_emails: { Args: { p_account_id: string }; Returns: { user_id: string; email: string }[] };
-      activate_payment: { Args: { p_payment_id: string; p_raw?: Json }; Returns: boolean };
       refresh_daily_stats: { Args: { p_days?: number }; Returns: undefined };
       ensure_basic_flow: { Args: { p_account_id: string; p_kind: string }; Returns: string };
       purge_trash: { Args: Record<PropertyKey, never>; Returns: undefined };
@@ -1536,6 +1567,8 @@ export type Database = {
       my_preview: { Args: { p_account_id: string }; Returns: Json };
       requeue_job: { Args: { p_id: string }; Returns: undefined };
       kick_worker: { Args: Record<PropertyKey, never>; Returns: boolean };
+      activate_payment: { Args: { p_payment_id: string; p_raw?: Json }; Returns: boolean };
+      update_subscription_statuses: { Args: Record<PropertyKey, never>; Returns: number };
       contact_filter_sql: { Args: { p_filter: Json; p_search: string }; Returns: string };
       my_accounts: { Args: { p_roles?: Database["public"]["Enums"]["member_role"][] }; Returns: string[] };
       contacts_page: { Args: { p_account_id: string; p_filter?: Json; p_search?: string; p_before?: string; p_before_id?: string; p_limit?: number }; Returns: { id: string; first_name: string; last_name: string; username: string; avatar_url: string; subscribed_at: string; last_interaction_at: string; is_subscribed: boolean; tags: Json }[] };
@@ -1566,6 +1599,12 @@ export type Database = {
       cancel_broadcast: { Args: { p_id: string }; Returns: undefined };
       growth_start: { Args: { p_bot_id: string; p_contact_id: string; p_code: string; p_is_new: boolean }; Returns: Json };
       growth_view: { Args: { p_id: string }; Returns: Json };
+      cron_auth: { Args: { p_secret: string }; Returns: boolean };
+      recompute_contact_limit: { Args: { p_account_id: string }; Returns: number };
+      billing_reminders_due: { Args: Record<PropertyKey, never>; Returns: Json };
+      kick_billing: { Args: Record<PropertyKey, never>; Returns: boolean };
+      expire_stale_payments: { Args: Record<PropertyKey, never>; Returns: number };
+      perf_summary: { Args: { p_account_id: string; p_hours?: number }; Returns: { kind: string; name: string; n: number; p50: number; p95: number; p99: number; over_2s: number }[] };
     };
     Enums: {
       member_role: "admin" | "editor" | "agent" | "viewer";

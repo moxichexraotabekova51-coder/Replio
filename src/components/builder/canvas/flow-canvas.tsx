@@ -83,6 +83,16 @@ function Canvas({ onSelect, sidebarOpen }: { onSelect: (id: string | null) => vo
   const rf = useReactFlow();
   const wrapper = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<Node[]>(() => toRfNodes(draft, selected));
+  // Katta flow (>40 step): boshlanishda faqat trigger atrofi — 200 node birdaniga render qilinmaydi (Ctrl+0 — hammasi)
+  const [initialFit] = useState(() => {
+    const d = useEditor.getState().draft;
+    if (d.nodes.length <= 40) return { padding: 0.2, maxZoom: 1 };
+    const start = d.nodes.find((n) => n.type === "trigger") ?? d.nodes[0];
+    const near = [...d.nodes]
+      .sort((a, b) => Math.hypot(a.position.x - start.position.x, a.position.y - start.position.y) - Math.hypot(b.position.x - start.position.x, b.position.y - start.position.y))
+      .slice(0, 6);
+    return { padding: 0.2, maxZoom: 1, minZoom: 0.4, nodes: near.map((n) => ({ id: n.id })) };
+  });
   const edges = useMemo(() => toRfEdges(draft), [draft]);
   const [menu, setMenu] = useState<{ x: number; y: number; flow: { x: number; y: number }; from?: { source: string; handle: string } } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; id: string } | null>(null);
@@ -327,7 +337,7 @@ function Canvas({ onSelect, sidebarOpen }: { onSelect: (id: string | null) => vo
         minZoom={0.1}
         maxZoom={2}
         fitView
-        fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+        fitViewOptions={initialFit}
         onlyRenderVisibleElements
         proOptions={{ hideAttribution: true }}
         defaultEdgeOptions={{ type: "default" }}
