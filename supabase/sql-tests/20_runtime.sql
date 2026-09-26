@@ -50,4 +50,28 @@ select pg_temp.assert((select count(*) from public.messages where account_id = :
 select pg_temp.assert((select is_unread and live_chat_status = 'open' from public.contacts where tg_user_id = 5001), 'contact unread/open');
 select pg_temp.assert((select runs from public.flows where id = :'flow') = 1, 'flow runs');
 select pg_temp.assert((select ms between 250 and 400 from public.latency_logs limit 1), 'latency ms');
+-- contact_apply: teg, field, holat, notify, schedule
+insert into public.tags (account_id, name) values (:'acc', 'lead') returning id as lead \gset
+insert into public.custom_fields (account_id, name, type) values (:'acc', 'tel', 'text') returning id as tel \gset
+select id as cid from public.contacts where tg_user_id = 5001 \gset
+select public.contact_apply(:'cid', jsonb_build_array(
+  jsonb_build_object('a','add_tag','tag_id',:'lead'),
+  jsonb_build_object('a','set_field','field_id',:'tel','value','+998901234567'),
+  jsonb_build_object('a','schedule','run_at', now() + interval '1 hour', 'payload', jsonb_build_object('flow_id', :'flow', 'step', 'm2')),
+  jsonb_build_object('a','open_chat')), '{"input":{"step":"m1"}}'::jsonb) as ap \gset
+select pg_temp.assert(:'ap'::jsonb -> 'tags' ? :'lead', 'tag applied');
+select pg_temp.assert(:'ap'::jsonb -> 'fields' ->> 'tel' = '+998901234567', 'field set');
+select pg_temp.assert(:'ap'::jsonb -> 'state' -> 'input' ->> 'step' = 'm1', 'state set');
+select pg_temp.assert((select count(*) from public.scheduled_jobs where account_id = :'acc') = 1, 'job scheduled');
+-- Pro tekshiruvi: Start tarifida Data Collection publish qilinmaydi
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000c1', false);
+set role authenticated;
+do $$ begin
+  perform public.publish_flow((select id from public.flows where name = 'Kalit so''zga javob' limit 1), '{}'::jsonb,
+    '{"v":2,"start":"m1","steps":{"m1":{"t":"message","next":null,"blocks":[{"t":"input","kind":"text","text":"?"}]}}}'::jsonb);
+  raise exception 'should not reach';
+exception when others then
+  if sqlerrm not like 'upgrade_required%' then raise; end if;
+end $$;
+reset role;
 \echo '  Runtime testlari o''tdi'

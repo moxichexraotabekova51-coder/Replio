@@ -51,18 +51,24 @@ export type Database = {
           user_id: string;
           role: Database["public"]["Enums"]["member_role"];
           created_at: string;
+          preview_code: string | null;
+          tg_contact_id: string | null;
         };
         Insert: {
           account_id: string;
           user_id: string;
           role?: Database["public"]["Enums"]["member_role"];
           created_at?: string;
+          preview_code?: string | null;
+          tg_contact_id?: string | null;
         };
         Update: {
           account_id?: string;
           user_id?: string;
           role?: Database["public"]["Enums"]["member_role"];
           created_at?: string;
+          preview_code?: string | null;
+          tg_contact_id?: string | null;
         };
         Relationships: [
           {
@@ -70,6 +76,13 @@ export type Database = {
             columns: ["account_id"];
             isOneToOne: false;
             referencedRelation: "accounts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "account_members_tg_contact_id_fkey";
+            columns: ["tg_contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
             referencedColumns: ["id"];
           },
         ];
@@ -429,6 +442,7 @@ export type Database = {
           last_message_at: string | null;
           over_limit: boolean;
           search: string | null;
+          bot_state: Json;
         };
         Insert: {
           id?: string;
@@ -450,6 +464,7 @@ export type Database = {
           last_message_preview?: string | null;
           last_message_at?: string | null;
           over_limit?: boolean;
+          bot_state?: Json;
         };
         Update: {
           id?: string;
@@ -471,6 +486,7 @@ export type Database = {
           last_message_preview?: string | null;
           last_message_at?: string | null;
           over_limit?: boolean;
+          bot_state?: Json;
         };
         Relationships: [
           {
@@ -624,6 +640,7 @@ export type Database = {
           deleted_at: string | null;
           created_at: string;
           updated_at: string;
+          preview_compiled: Json | null;
         };
         Insert: {
           id?: string;
@@ -642,6 +659,7 @@ export type Database = {
           deleted_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          preview_compiled?: Json | null;
         };
         Update: {
           id?: string;
@@ -660,6 +678,7 @@ export type Database = {
           deleted_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          preview_compiled?: Json | null;
         };
         Relationships: [
           {
@@ -1463,14 +1482,20 @@ export type Database = {
       tags_with_counts: { Args: { p_account_id: string }; Returns: { id: string; name: string; folder: string; created_at: string; contacts: number }[] };
       latency_summary: { Args: { p_account_id: string; p_hours?: number }; Returns: Json };
       handle_update: { Args: { p_bot_id: string; p_secret: string; p_from: Json; p_cached_version?: number; p_subscribed?: boolean }; Returns: Json };
+      preview_flow: { Args: { p_bot_id: string; p_flow_id: string; p_contact_id: string }; Returns: Json };
       log_update: { Args: { p: Json }; Returns: undefined };
-      publish_flow: { Args: { p_flow_id: string; p_draft: Json; p_compiled: Json }; Returns: number };
+      my_preview: { Args: { p_account_id: string }; Returns: Json };
       contact_filter_sql: { Args: { p_filter: Json; p_search: string }; Returns: string };
       my_accounts: { Args: { p_roles?: Database["public"]["Enums"]["member_role"][] }; Returns: string[] };
       contacts_page: { Args: { p_account_id: string; p_filter?: Json; p_search?: string; p_before?: string; p_before_id?: string; p_limit?: number }; Returns: { id: string; first_name: string; last_name: string; username: string; avatar_url: string; subscribed_at: string; last_interaction_at: string; is_subscribed: boolean; tags: Json }[] };
       contacts_count: { Args: { p_account_id: string; p_filter?: Json; p_search?: string }; Returns: number };
       contacts_export: { Args: { p_account_id: string; p_filter?: Json; p_search?: string }; Returns: { id: string; tg_user_id: number; first_name: string; last_name: string; username: string; language_code: string; subscribed_at: string; last_interaction_at: string; is_subscribed: boolean; tags: string; fields: Json }[] };
       contacts_bulk: { Args: { p_account_id: string; p_ids: string[]; p_filter: Json; p_search: string; p_action: string; p_arg?: Json }; Returns: number };
+      contact_snapshot: { Args: { p_contact_id: string }; Returns: Json };
+      contact_apply: { Args: { p_contact_id: string; p_actions: Json; p_state?: Json }; Returns: Json };
+      link_preview: { Args: { p_bot_id: string; p_code: string; p_contact_id: string }; Returns: boolean };
+      publish_flow: { Args: { p_flow_id: string; p_draft: Json; p_compiled: Json }; Returns: number };
+      run_context: { Args: { p_bot_id: string; p_contact_id: string }; Returns: Json };
     };
     Enums: {
       member_role: "admin" | "editor" | "agent" | "viewer";

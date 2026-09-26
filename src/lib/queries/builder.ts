@@ -183,7 +183,10 @@ export function usePublish(flowId: string) {
       void qc.invalidateQueries({ queryKey: [acc, "flows"] });
       void qc.invalidateQueries({ queryKey: builderKeys.versions(acc, flowId) });
     },
-    onError: () => toast.error("Publish qilib bo'lmadi. Qayta urinib ko'ring."),
+    onError: (e: { message?: string }) => {
+      // upgrade_required:* — chaqiruvchi pricing modalni ochadi
+      if (!e.message?.startsWith("upgrade_required")) toast.error("Publish qilib bo'lmadi. Qayta urinib ko'ring.");
+    },
   });
 }
 
@@ -218,6 +221,37 @@ export function useVersions(flowId: string, enabled: boolean) {
         .limit(50);
       if (error) throw error;
       return data;
+    },
+  });
+}
+
+export type StepStat = { sent: number; delivered: number; clicked: number };
+
+/** Canvas'dagi har bir qadam statistikasi (Sent/Delivered/Clicked) */
+export function useStepStats(flowId: string) {
+  const acc = useAccountId();
+  return useQuery({
+    queryKey: [acc, "flow", flowId, "stats"] as const,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await createClient().from("step_stats").select("step_id, sent, delivered, clicked").eq("flow_id", flowId);
+      if (error) throw error;
+      return Object.fromEntries((data ?? []).map((r) => [r.step_id, { sent: r.sent, delivered: r.delivered, clicked: r.clicked }])) as Record<string, StepStat>;
+    },
+  });
+}
+
+export type PreviewState = { bot: string | null; linked?: boolean; link?: string };
+
+export function usePreviewState(enabled: boolean) {
+  const acc = useAccountId();
+  return useQuery({
+    queryKey: [acc, "preview"] as const,
+    enabled,
+    queryFn: async () => {
+      const res = await fetch("/api/flows/preview-state");
+      if (!res.ok) throw new Error("preview");
+      return (await res.json()) as PreviewState;
     },
   });
 }

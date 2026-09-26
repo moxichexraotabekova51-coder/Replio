@@ -3,11 +3,12 @@
 import { Bold, Braces, Italic, Link2, Plus, Smile, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { FieldError, Input, Label } from "@/components/ui/input";
+import { FieldError, Input, Label, NativeSelect } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { isHttpUrl } from "@/lib/flow/compile";
 import { MAX_BUTTONS, TEXT_LIMIT, uid, type DraftButton, type TextBlock } from "@/lib/flow/draft";
 import { useT } from "@/lib/i18n/provider";
+import { useFlows } from "@/lib/queries/automation";
 import { useAllFields } from "@/lib/queries/builder";
 import { cn } from "@/lib/utils";
 
@@ -16,14 +17,19 @@ const EMOJIS =
 
 const SYSTEM_VARS = ["first_name", "last_name", "full_name", "username"];
 
+export type ButtonKind = DraftButton["kind"];
+
 export function TextBlockEditor({
   block,
   onChange,
   invalid,
+  buttonKinds = ["url"],
 }: {
   block: TextBlock;
   onChange: (b: TextBlock) => void;
   invalid?: boolean;
+  /** Basic builder'da faqat URL; Flow builder'da — keyingi step va boshqa avtomatlashtirish ham */
+  buttonKinds?: ButtonKind[];
 }) {
   const t = useT();
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -120,7 +126,7 @@ export function TextBlockEditor({
         />
       ))}
       {block.buttons.length < MAX_BUTTONS && (
-        <AddButtonPopover onAdd={(b) => onChange({ ...block, buttons: [...block.buttons, b] })} />
+        <AddButtonPopover kinds={buttonKinds} onAdd={(b) => onChange({ ...block, buttons: [...block.buttons, b] })} />
       )}
     </div>
   );
@@ -225,7 +231,7 @@ function VarsPopover({ open, onOpenChange, onInsert }: { open: boolean; onOpenCh
 function ButtonRow({ button, onChange, onDelete }: { button: DraftButton; onChange: (b: DraftButton) => void; onDelete: () => void }) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const bad = !button.title.trim() || (button.kind === "url" && !isHttpUrl(button.url));
+  const bad = !button.title.trim() || (button.kind === "url" && !isHttpUrl(button.url)) || (button.kind === "flow" && !button.flow_id);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <div className={cn("flex h-11 items-center rounded-[12px] border border-border bg-bg text-sm", bad && "border-2 border-fg")}>
@@ -248,6 +254,7 @@ function ButtonRow({ button, onChange, onDelete }: { button: DraftButton; onChan
 
 function ButtonFields({ button, onChange }: { button: DraftButton; onChange: (b: DraftButton) => void }) {
   const t = useT();
+  const flows = useFlows();
   return (
     <>
       <div>
@@ -261,20 +268,42 @@ function ButtonFields({ button, onChange }: { button: DraftButton; onChange: (b:
           {button.url && !isHttpUrl(button.url) && <FieldError>{t.builder.issues.bad_url}</FieldError>}
         </div>
       )}
+      {button.kind === "flow" && (
+        <div>
+          <Label htmlFor={`bf-${button.id}`}>{t.builder.selectFlow}</Label>
+          <NativeSelect id={`bf-${button.id}`} value={button.flow_id ?? ""} onChange={(e) => onChange({ ...button, flow_id: e.target.value || null })}>
+            <option value="">—</option>
+            {flows.data?.filter((f) => f.status === "live").map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+      )}
     </>
   );
 }
 
-function AddButtonPopover({ onAdd }: { onAdd: (b: DraftButton) => void }) {
+function blankButton(kind: ButtonKind): DraftButton {
+  const id = uid("b");
+  if (kind === "url") return { id, title: "", kind, url: "https://" };
+  if (kind === "flow") return { id, title: "", kind, flow_id: null };
+  return { id, title: "", kind };
+}
+
+function AddButtonPopover({ onAdd, kinds }: { onAdd: (b: DraftButton) => void; kinds: ButtonKind[] }) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<DraftButton>({ id: uid("b"), title: "", kind: "url", url: "https://" });
+  const [draft, setDraft] = useState<DraftButton>(blankButton(kinds[0]));
+  const labels: Record<ButtonKind, string> = { url: t.builder.buttonTypeUrl, step: t.builder.buttonTypeStep, flow: t.builder.buttonTypeFlow };
+  const valid = !!draft.title.trim() && (draft.kind !== "url" || isHttpUrl(draft.url)) && (draft.kind !== "flow" || !!draft.flow_id);
   return (
     <Popover
       open={open}
       onOpenChange={(v) => {
         setOpen(v);
-        if (v) setDraft({ id: uid("b"), title: "", kind: "url", url: "https://" });
+        if (v) setDraft(blankButton(kinds[0]));
       }}
     >
       <PopoverTrigger asChild>
@@ -285,14 +314,24 @@ function AddButtonPopover({ onAdd }: { onAdd: (b: DraftButton) => void }) {
       </PopoverTrigger>
       <PopoverContent className="space-y-3">
         <div>
-          <Label>{t.builder.buttonType}</Label>
-          <div className="flex h-9 items-center rounded-[6px] border border-fg bg-bg-muted px-3 text-[13px] font-medium">{t.builder.buttonTypeUrl}</div>
+          <Label htmlFor="btn-kind">{t.builder.buttonType}</Label>
+          {kinds.length > 1 ? (
+            <NativeSelect id="btn-kind" value={draft.kind} onChange={(e) => setDraft({ ...blankButton(e.target.value as ButtonKind), title: draft.title })}>
+              {kinds.map((k) => (
+                <option key={k} value={k}>
+                  {labels[k]}
+                </option>
+              ))}
+            </NativeSelect>
+          ) : (
+            <div className="flex h-9 items-center rounded-[6px] border border-fg bg-bg-muted px-3 text-[13px] font-medium">{labels[kinds[0]]}</div>
+          )}
         </div>
         <ButtonFields button={draft} onChange={setDraft} />
         <Button
           size="sm"
           className="w-full"
-          disabled={!draft.title.trim() || (draft.kind === "url" && !isHttpUrl(draft.url))}
+          disabled={!valid}
           onClick={() => {
             onAdd({ ...draft, title: draft.title.trim() });
             setOpen(false);

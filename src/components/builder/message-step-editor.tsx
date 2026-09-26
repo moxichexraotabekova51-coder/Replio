@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Clock, Copy, GripVertical, MoreVertical, Pencil, Trash2, Type } from "lucide-react";
+import { ArrowDown, ArrowUp, Clock, Copy, FileText, Film, GripVertical, Image as ImageIcon, ListPlus, MapPin, MoreVertical, Music, Pencil, Phone, Sparkle, TextCursorInput, Trash2, Type } from "lucide-react";
 import { useState } from "react";
 import { TelegramIcon } from "@/components/brand/logo";
 import {
@@ -10,18 +10,25 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NativeSelect } from "@/components/ui/input";
+import { useApp } from "@/components/providers/app-provider";
+import { planFeatures } from "@/lib/billing";
 import { uid, type DraftBlock, type MessageNode } from "@/lib/flow/draft";
+import { usePricingModal } from "@/lib/stores/ui";
 import { fmt } from "@/lib/i18n";
 import { useT } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 import { useEditor } from "./store";
+import { InputBlockEditor, MediaBlockEditor, MenuEditor, RequestBlockEditor } from "./block-editors";
 import { TextBlockEditor } from "./text-block-editor";
 
 const DELAYS = [1, 2, 3, 5, 10, 15, 20, 30, 45, 60];
 
 /** 12.2 — "Send Message" tahriri: bloklar ketma-ketligi va kontent qo'shish kartochkalari */
-export function MessageStepEditor({ node, readOnly }: { node: MessageNode; readOnly?: boolean }) {
+export function MessageStepEditor({ node, readOnly, mode = "flow" }: { node: MessageNode; readOnly?: boolean; mode?: "flow" | "basic" }) {
   const t = useT();
+  const app = useApp();
+  const showPricing = usePricingModal((s) => s.show);
+  const canCollect = !!planFeatures(app.plan).data_collection && !app.billing.expired;
   const update = useEditor((s) => s.update);
   const issues = useEditor((s) => s.issues);
   const [renaming, setRenaming] = useState(false);
@@ -118,7 +125,12 @@ export function MessageStepEditor({ node, readOnly }: { node: MessageNode; readO
                 </div>
               </>
             )}
-            {b.type === "text" && <TextBlockEditor block={b} invalid={invalid} onChange={(nb) => setBlock(i, nb)} />}
+            {b.type === "text" && <TextBlockEditor block={b} invalid={invalid} onChange={(nb) => setBlock(i, nb)} buttonKinds={mode === "flow" ? ["step", "url", "flow"] : ["url"]} />}
+            {(b.type === "image" || b.type === "video" || b.type === "audio" || b.type === "file" || b.type === "gif") && (
+              <MediaBlockEditor block={b} invalid={invalid} onChange={(nb) => setBlock(i, nb)} />
+            )}
+            {b.type === "input" && <InputBlockEditor block={b} invalid={invalid} onChange={(nb) => setBlock(i, nb)} />}
+            {b.type === "request" && <RequestBlockEditor block={b} invalid={invalid} onChange={(nb) => setBlock(i, nb)} />}
             {b.type === "delay" && (
               <div className="flex items-center gap-3 rounded-[12px] border border-dashed border-border-dashed bg-bg px-4 py-3 text-sm">
                 <Clock className="size-4 shrink-0" />
@@ -141,12 +153,62 @@ export function MessageStepEditor({ node, readOnly }: { node: MessageNode; readO
         );
       })}
 
+      {!readOnly && mode === "flow" && (
+        <div className="border-t border-border pt-4">
+          {node.data.menu ? (
+            <MenuEditor items={node.data.menu} onChange={(items) => setNode((n) => void (n.data.menu = items.length ? items : undefined))} />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setNode((n) => void (n.data.menu = [{ id: uid("mm"), title: "" }]))}
+              className="flex h-11 w-full items-center justify-center gap-1.5 rounded-[12px] border border-dashed border-border-dashed text-sm font-medium hover:border-fg hover:bg-bg-subtle"
+            >
+              <ListPlus className="size-4" />+ {t.builder.telegramMenu}
+            </button>
+          )}
+        </div>
+      )}
+
       {!readOnly && (
         <div className="border-t border-border pt-4">
           <p className="mb-3 text-[13px] text-muted">{t.builder.addContent}</p>
           <div className="grid grid-cols-2 gap-3">
             <AddCard icon={<Type className="size-5" />} title={t.builder.blockText} desc={t.builder.blockTextDesc} onClick={() => addBlock({ id: uid("b"), type: "text", text: "", buttons: [] })} />
+            {mode === "flow" && (
+              <AddCard icon={<ImageIcon className="size-5" />} title={t.builder.blockImage} desc={t.builder.blockImageDesc} onClick={() => addBlock({ id: uid("b"), type: "image", url: "" })} />
+            )}
             <AddCard icon={<Clock className="size-5" />} title={t.builder.blockDelay} desc={t.builder.blockDelayDesc} onClick={() => addBlock({ id: uid("b"), type: "delay", seconds: 3 })} />
+            {mode === "flow" && (
+              <>
+                <AddCard
+                  icon={<TextCursorInput className="size-5" />}
+                  title={t.builder.blockInput}
+                  desc={t.builder.blockInputDesc}
+                  badge={canCollect ? undefined : t.builder.upgradeBadge}
+                  onClick={() =>
+                    canCollect
+                      ? addBlock({ id: uid("b"), type: "input", text: "", kind: "text", choices: [], field_id: null, error: "", skip: null, timeout_min: null })
+                      : showPricing("pro")
+                  }
+                />
+                <AddCard icon={<Film className="size-5" />} title={t.builder.blockVideo} desc={t.builder.blockVideoDesc} onClick={() => addBlock({ id: uid("b"), type: "video", url: "" })} />
+                <AddCard icon={<Music className="size-5" />} title={t.builder.blockAudio} desc={t.builder.blockAudioDesc} onClick={() => addBlock({ id: uid("b"), type: "audio", url: "" })} />
+                <AddCard icon={<FileText className="size-5" />} title={t.builder.blockFile} desc={t.builder.blockFileDesc} onClick={() => addBlock({ id: uid("b"), type: "file", url: "" })} />
+                <AddCard icon={<Sparkle className="size-5" />} title={t.builder.blockGif} desc={t.builder.blockGifDesc} onClick={() => addBlock({ id: uid("b"), type: "gif", url: "" })} />
+                <AddCard
+                  icon={<Phone className="size-5" />}
+                  title={t.builder.blockContact}
+                  desc={t.builder.blockContactDesc}
+                  onClick={() => addBlock({ id: uid("b"), type: "request", kind: "contact", text: "", button: "📱 Raqamni yuborish", field_id: null })}
+                />
+                <AddCard
+                  icon={<MapPin className="size-5" />}
+                  title={t.builder.blockLocation}
+                  desc={t.builder.blockLocationDesc}
+                  onClick={() => addBlock({ id: uid("b"), type: "request", kind: "location", text: "", button: "📍 Lokatsiyani yuborish", field_id: null })}
+                />
+              </>
+            )}
           </div>
         </div>
       )}
@@ -154,13 +216,14 @@ export function MessageStepEditor({ node, readOnly }: { node: MessageNode; readO
   );
 }
 
-function AddCard({ icon, title, desc, onClick }: { icon: React.ReactNode; title: string; desc: string; onClick: () => void }) {
+function AddCard({ icon, title, desc, onClick, badge }: { icon: React.ReactNode; title: string; desc: string; onClick: () => void; badge?: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex items-start gap-3 rounded-[12px] border border-dashed border-border-dashed bg-bg p-3 text-left hover:border-fg hover:bg-bg-subtle"
+      className="relative flex items-start gap-3 rounded-[12px] border border-dashed border-border-dashed bg-bg p-3 text-left hover:border-fg hover:bg-bg-subtle"
     >
+      {badge && <span className="absolute right-2 top-2 rounded-[4px] bg-fg px-1 text-[9px] font-bold tracking-wide text-bg">{badge}</span>}
       <span className="mt-0.5 shrink-0">{icon}</span>
       <span>
         <span className="block text-sm font-semibold">{title}</span>

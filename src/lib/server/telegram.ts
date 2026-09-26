@@ -42,3 +42,19 @@ export async function setWebhook(token: string, botId: string, secret: string) {
     drop_pending_updates: false,
   });
 }
+
+/** Edge Function ichki /run endpointi (service key bilan) */
+export async function runFlow(botId: string, body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+  const base = (process.env.FUNCTIONS_URL ?? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1`).replace(/\/$/, "");
+  try {
+    const res = await fetch(`${base}/tg-webhook/${botId}/run`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000),
+    });
+    return (await res.json().catch(() => ({ ok: false, error: `http_${res.status}` }))) as { ok: boolean; error?: string };
+  } catch {
+    return { ok: false, error: "unreachable" };
+  }
+}
