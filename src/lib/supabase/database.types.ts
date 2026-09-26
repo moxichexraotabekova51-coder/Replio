@@ -1408,6 +1408,7 @@ export type Database = {
           click_count: number;
           created_at: string;
           updated_at: string;
+          secret: string;
         };
         Insert: {
           id?: string;
@@ -1423,6 +1424,7 @@ export type Database = {
           click_count?: number;
           created_at?: string;
           updated_at?: string;
+          secret?: string;
         };
         Update: {
           id?: string;
@@ -1438,6 +1440,7 @@ export type Database = {
           click_count?: number;
           created_at?: string;
           updated_at?: string;
+          secret?: string;
         };
         Relationships: [
           {
@@ -1496,6 +1499,15 @@ export type Database = {
       link_preview: { Args: { p_bot_id: string; p_code: string; p_contact_id: string }; Returns: boolean };
       publish_flow: { Args: { p_flow_id: string; p_draft: Json; p_compiled: Json }; Returns: number };
       run_context: { Args: { p_bot_id: string; p_contact_id: string }; Returns: Json };
+      worker_auth: { Args: { p_secret: string }; Returns: boolean };
+      next_window: { Args: { p_ts: string; p_tz: string; p_w: Json }; Returns: string };
+      enqueue_trigger_events: { Args: { p_type: string; p_events: Json }; Returns: number };
+      enqueue_date_triggers: { Args: Record<PropertyKey, never>; Returns: number };
+      webhook_event: { Args: { p_account_id: string; p_trigger_id: string; p_secret: string; p_contact_id: string; p_tg_user_id: number; p_fields: Json }; Returns: Json };
+      claim_work: { Args: { p_limit?: number }; Returns: Json };
+      finish_jobs: { Args: { p_done: string[]; p_failed?: Json }; Returns: undefined };
+      kick_worker: { Args: Record<PropertyKey, never>; Returns: boolean };
+      purge_jobs: { Args: Record<PropertyKey, never>; Returns: undefined };
     };
     Enums: {
       member_role: "admin" | "editor" | "agent" | "viewer";

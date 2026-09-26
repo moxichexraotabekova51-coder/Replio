@@ -2,6 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListOrdered, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useAccountId, usePermissions } from "@/components/providers/app-provider";
@@ -37,6 +39,7 @@ export function SequencesPage() {
   const acc = useAccountId();
   const perms = usePermissions();
   const qc = useQueryClient();
+  const router = useRouter();
   const key = automationKeys.sequences(acc);
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState<Seq | null>(null);
@@ -68,8 +71,9 @@ export function SequencesPage() {
 
   const create = useMutation({
     mutationFn: async (name: string) => {
-      const { error } = await createClient().from("sequences").insert({ account_id: acc, name });
+      const { data, error } = await createClient().from("sequences").insert({ account_id: acc, name }).select("id").single();
       if (error) throw error;
+      router.push(`/app/automation/sequences/${data.id}`);
     },
     onMutate: (name) =>
       optimistic((rows) => [
@@ -132,13 +136,13 @@ export function SequencesPage() {
         {q.data?.map((s) => (
           <div key={s.id} className="flex items-center gap-4 rounded-[12px] border border-border bg-bg px-6 py-5 shadow-sm">
             <Badge status={s.is_active ? "live" : "stopped"}>{s.is_active ? t.automation.active : t.automation.paused}</Badge>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[18px] font-semibold">{s.name}</div>
+            <Link href={s.id.startsWith("temp-") ? "#" : `/app/automation/sequences/${s.id}`} className="min-w-0 flex-1">
+              <div className="truncate text-[18px] font-semibold hover:underline">{s.name}</div>
               <div className="text-[13px] text-muted">
                 {fmt(t.automation.steps, { n: s.sequence_steps[0]?.count ?? 0 })} ·{" "}
                 {fmt(t.automation.subscribers, { n: s.contact_sequences[0]?.count ?? 0 })}
               </div>
-            </div>
+            </Link>
             {perms.canEdit && !s.id.startsWith("temp-") && (
               <>
                 <Switch

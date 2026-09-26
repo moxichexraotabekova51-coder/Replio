@@ -21,10 +21,14 @@ export type FlowDetail = {
   deleted_at: string | null;
 };
 
+export type TriggerConditions = { op?: "and" | "or"; rules?: unknown[] };
+
 export type FlowTrigger = {
   id: string;
   type: string;
   config: Record<string, unknown>;
+  conditions: TriggerConditions | unknown[];
+  secret?: string;
   is_active: boolean;
   run_count: number;
   click_count: number;
@@ -62,7 +66,7 @@ export function useFlowTriggers(flowId: string) {
     queryFn: async () => {
       const { data, error } = await createClient()
         .from("triggers")
-        .select("id, type, config, is_active, run_count, click_count, updated_at")
+        .select("id, type, config, conditions, secret, is_active, run_count, click_count, updated_at")
         .eq("flow_id", flowId)
         .order("created_at");
       if (error) throw error;
@@ -127,23 +131,29 @@ export function useTriggerMutations(flowId: string) {
   };
 
   const create = useMutation({
-    mutationFn: async ({ type, config }: { type: string; config: Record<string, unknown> }) => {
-      const { error } = await createClient().from("triggers").insert({ account_id: acc, flow_id: flowId, type, config: config as Json });
+    mutationFn: async ({ type, config, conditions }: { type: string; config: Record<string, unknown>; conditions?: TriggerConditions }) => {
+      const { error } = await createClient()
+        .from("triggers")
+        .insert({ account_id: acc, flow_id: flowId, type, config: config as Json, conditions: (conditions ?? {}) as Json });
       if (error) throw error;
     },
-    onMutate: ({ type, config }) =>
+    onMutate: ({ type, config, conditions }) =>
       optimistic((rows) => [
         ...rows,
-        { id: `temp-${Date.now()}`, type, config, is_active: true, run_count: 0, click_count: 0, updated_at: new Date().toISOString() },
+        { id: `temp-${Date.now()}`, type, config, conditions: conditions ?? {}, is_active: true, run_count: 0, click_count: 0, updated_at: new Date().toISOString() },
       ]),
     onError: rollback,
     onSettled: settle,
   });
   const update = useMutation({
-    mutationFn: async ({ id, patch }: { id: string; patch: { config?: Record<string, unknown>; is_active?: boolean } }) => {
+    mutationFn: async ({ id, patch }: { id: string; patch: { config?: Record<string, unknown>; conditions?: TriggerConditions; is_active?: boolean } }) => {
       const { error } = await createClient()
         .from("triggers")
-        .update({ ...(patch.config ? { config: patch.config as Json } : {}), ...(patch.is_active !== undefined ? { is_active: patch.is_active } : {}) })
+        .update({
+          ...(patch.config ? { config: patch.config as Json } : {}),
+          ...(patch.conditions ? { conditions: patch.conditions as Json } : {}),
+          ...(patch.is_active !== undefined ? { is_active: patch.is_active } : {}),
+        })
         .eq("id", id);
       if (error) throw error;
     },

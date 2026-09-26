@@ -218,7 +218,7 @@ export async function execute(rt: Runtime, ctx: ExecCtx, flowId: string, flow: C
         next = await runAction(rt, ctx, flowId, cur, step);
         break;
       case "condition":
-        next = evalConditions(ctx.contact, step.op, step.rules) ? step.yes : step.no;
+        next = evalConditions(ctx.contact, step.op, step.rules, { now: rt.now(), tz: rt.timezone }) ? step.yes : step.no;
         break;
       case "random":
         next = pickVariant(step.variants, rt.random())?.step ?? null;

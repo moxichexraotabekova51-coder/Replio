@@ -36,7 +36,14 @@ function cmpValue(actual: unknown, cmp: string, expected: string | undefined): b
   }
 }
 
-export function evalRule(c: Contact, r: CRule): boolean {
+export type EvalEnv = { now: Date; tz: string };
+
+function minutesOf(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+export function evalRule(c: Contact, r: CRule, env?: EvalEnv): boolean {
   switch (r.kind) {
     case "tag": {
       const has = c.tags.includes(r.tag_id);
@@ -61,12 +68,29 @@ export function evalRule(c: Contact, r: CRule): boolean {
       const ref = Date.parse(r.value);
       return r.cmp === "before" ? d < ref : d >= ref;
     }
+    case "time": {
+      const now = env?.now ?? new Date();
+      const { hour, minute } = localParts(now, env?.tz ?? "Asia/Tashkent");
+      const cur = hour * 60 + minute;
+      const from = minutesOf(r.from);
+      const to = minutesOf(r.to);
+      return from <= to ? cur >= from && cur < to : cur >= from || cur < to; // tunni kesib o'tuvchi oraliq
+    }
+    default:
+      return false;
   }
 }
 
-export function evalConditions(c: Contact, op: "and" | "or", rules: CRule[]): boolean {
-  if (!rules.length) return true;
-  return op === "or" ? rules.some((r) => evalRule(c, r)) : rules.every((r) => evalRule(c, r));
+export function evalConditions(c: Contact, op: "and" | "or", rules: CRule[], env?: EvalEnv): boolean {
+  if (!rules?.length) return true;
+  return op === "or" ? rules.some((r) => evalRule(c, r, env)) : rules.every((r) => evalRule(c, r, env));
+}
+
+/** Trigger shartlari: eski format ([]) yoki {op, rules} */
+export function triggerConditionsOk(c: Contact, cond: unknown, env?: EvalEnv): boolean {
+  if (!cond || typeof cond !== "object" || Array.isArray(cond)) return true;
+  const x = cond as { op?: "and" | "or"; rules?: CRule[] };
+  return evalConditions(c, x.op ?? "and", x.rules ?? [], env);
 }
 
 export type InputCheck = { ok: true; value: unknown } | { ok: false };
@@ -109,10 +133,11 @@ export function checkInput(kind: InputKind | "contact" | "location", raw: { text
 
 /** Akkaunt vaqt mintaqasidagi kun/soat */
 function localParts(d: Date, tz: string) {
-  const p = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", hour: "numeric", hour12: false }).formatToParts(d);
+  const p = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", hour: "numeric", minute: "numeric", hour12: false }).formatToParts(d);
   const wd = p.find((x) => x.type === "weekday")?.value ?? "Mon";
   const hour = Number(p.find((x) => x.type === "hour")?.value ?? 0) % 24;
-  return { weekday: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(wd), hour };
+  const minute = Number(p.find((x) => x.type === "minute")?.value ?? 0);
+  return { weekday: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(wd), hour, minute };
 }
 
 /** Smart Delay: "faqat ish vaqtida" (Du–Ju, 09:00–18:00, akkaunt vaqt mintaqasi) */

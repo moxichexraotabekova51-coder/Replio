@@ -1,7 +1,7 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { execute, handleInput, menuTarget, parseCallback, type Runtime } from "./engine.ts";
 import type { BotState, CompiledFlow, Contact, Trigger } from "./flow.ts";
-import { checkInput, evalConditions, jsonPath, nextBusinessTime, pickVariant } from "./logic.ts";
+import { checkInput, evalConditions, jsonPath, nextBusinessTime, pickVariant, triggerConditionsOk } from "./logic.ts";
 import { matchTrigger, normalize } from "./match.ts";
 import { renderVars } from "./render.ts";
 
@@ -194,4 +194,17 @@ Deno.test("logic: shartlar, javob tekshiruvi, ish vaqti, json yo'li, random", ()
   assertEquals(jsonPath({ a: { b: [{ c: 5 }] } }, "a.b.0.c"), 5);
   assertEquals(pickVariant([{ pct: 30, s: "a" }, { pct: 70, s: "b" }], 0.1)?.s, "a");
   assertEquals(pickVariant([{ pct: 30, s: "a" }, { pct: 70, s: "b" }], 0.5)?.s, "b");
+});
+
+Deno.test("trigger shartlari: vaqt oralig'i, eski format, tunni kesib o'tish", () => {
+  const c = contact({ tags: ["vip"] });
+  // 10:30 Toshkent = 05:30 UTC
+  const env = { now: new Date("2026-09-28T05:30:00Z"), tz: "Asia/Tashkent" };
+  assert(triggerConditionsOk(c, [], env));
+  assert(triggerConditionsOk(c, {}, env));
+  assert(triggerConditionsOk(c, { op: "and", rules: [{ kind: "time", from: "09:00", to: "18:00" }, { kind: "tag", tag_id: "vip" }] }, env));
+  assert(!triggerConditionsOk(c, { op: "and", rules: [{ kind: "time", from: "12:00", to: "18:00" }] }, env));
+  assert(triggerConditionsOk(c, { op: "or", rules: [{ kind: "time", from: "12:00", to: "18:00" }, { kind: "tag", tag_id: "vip" }] }, env));
+  // 22:00–06:00 oralig'i, soat 02:00 Toshkent
+  assert(triggerConditionsOk(c, { rules: [{ kind: "time", from: "22:00", to: "06:00" }] }, { now: new Date("2026-09-27T21:00:00Z"), tz: "Asia/Tashkent" }));
 });

@@ -17,6 +17,7 @@ import { useSequencesList } from "@/lib/queries/contacts";
 import { useMembers, useTagsList } from "@/lib/queries/inbox";
 import { usePricingModal } from "@/lib/stores/ui";
 import { cn } from "@/lib/utils";
+import { RulesEditor } from "./rules-editor";
 import { useEditor } from "./store";
 
 function useNodeUpdater<T extends StepNode | CommentNode>(id: string) {
@@ -293,117 +294,21 @@ function HttpFields({ action, onChange }: { action: Extract<DraftAction, { a: "h
 export function ConditionEditor({ node }: { node: ConditionNode }) {
   const t = useT();
   const set = useNodeUpdater<ConditionNode>(node.id);
-  const tags = useTagsList();
-  const fields = useAllFields();
   return (
     <div>
       <StepHeader node={node} icon={<span className="flex size-8 items-center justify-center rounded-[8px] bg-[#71717a] text-bg"><GitBranch className="size-4" /></span>} />
-      <NativeSelect value={node.data.op} onChange={(e) => set((n) => void (n.data.op = e.target.value as "and" | "or"))} aria-label="AND/OR">
-        <option value="and">{t.builder.matchAll}</option>
-        <option value="or">{t.builder.matchAny}</option>
-      </NativeSelect>
-      <div className="mt-3 space-y-2">
-        {node.data.rules.length === 0 && <p className="text-sm text-muted">{t.builder.noConditions}</p>}
-        {node.data.rules.map((r, i) => (
-          <div key={r.id} className="space-y-2 rounded-[12px] border border-border p-3">
-            <div className="flex gap-2">
-              <NativeSelect
-                value={r.kind}
-                aria-label="Shart turi"
-                onChange={(e) =>
-                  set((n) => {
-                    const kind = e.target.value;
-                    n.data.rules[i] =
-                      kind === "tag"
-                        ? { id: r.id, kind: "tag", tag_id: "" }
-                        : kind === "field"
-                          ? { id: r.id, kind: "field", field_id: "", cmp: "eq", value: "" }
-                          : kind === "system"
-                            ? { id: r.id, kind: "system", field: "first_name", cmp: "eq", value: "" }
-                            : { id: r.id, kind: "subscribed", cmp: "after", value: "" };
-                  })
-                }
-              >
-                <option value="tag">{t.contacts.kind.tag}</option>
-                <option value="field">{t.contacts.kind.field}</option>
-                <option value="system">{t.contacts.kind.system}</option>
-                <option value="subscribed">{t.contacts.kind.subscribed}</option>
-              </NativeSelect>
-              <button onClick={() => set((n) => void n.data.rules.splice(i, 1))} className="shrink-0 px-2 text-muted hover:text-fg" aria-label={t.common.delete}>
-                <Trash2 className="size-4" />
-              </button>
-            </div>
-            {r.kind === "tag" && (
-              <div className="flex gap-2">
-                <NativeSelect value={r.tag_id} aria-label={t.contacts.kind.tag} onChange={(e) => set((n) => void (n.data.rules[i] = { ...r, tag_id: e.target.value }))}>
-                  <option value="">—</option>
-                  {tags.data?.map((x) => (
-                    <option key={x.id} value={x.id}>
-                      {x.name}
-                    </option>
-                  ))}
-                </NativeSelect>
-                <NativeSelect className="w-32" value={r.neg ? "1" : "0"} aria-label="bor/yo'q" onChange={(e) => set((n) => void (n.data.rules[i] = { ...r, neg: e.target.value === "1" }))}>
-                  <option value="0">{t.contacts.has}</option>
-                  <option value="1">{t.contacts.hasNot}</option>
-                </NativeSelect>
-              </div>
-            )}
-            {(r.kind === "field" || r.kind === "system") && (
-              <>
-                <div className="flex gap-2">
-                  {r.kind === "field" ? (
-                    <NativeSelect value={r.field_id} aria-label={t.contacts.kind.field} onChange={(e) => set((n) => void (n.data.rules[i] = { ...r, field_id: e.target.value }))}>
-                      <option value="">—</option>
-                      {fields.data
-                        ?.filter((x) => !x.is_bot_field)
-                        .map((x) => (
-                          <option key={x.id} value={x.id}>
-                            {x.name}
-                          </option>
-                        ))}
-                    </NativeSelect>
-                  ) : (
-                    <NativeSelect value={r.field} aria-label={t.contacts.kind.system} onChange={(e) => set((n) => void (n.data.rules[i] = { ...r, field: e.target.value }))}>
-                      {(Object.keys(t.contacts.systemFields) as (keyof typeof t.contacts.systemFields)[]).map((k) => (
-                        <option key={k} value={k}>
-                          {t.contacts.systemFields[k]}
-                        </option>
-                      ))}
-                    </NativeSelect>
-                  )}
-                  <NativeSelect className="w-40" value={r.cmp} aria-label="Taqqoslash" onChange={(e) => set((n) => void (n.data.rules[i] = { ...r, cmp: e.target.value }))}>
-                    {["eq", "neq", "gt", "lt", "contains", "empty", "not_empty"].map((c) => (
-                      <option key={c} value={c}>
-                        {t.contacts.cmp[c as keyof typeof t.contacts.cmp]}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                </div>
-                {r.cmp !== "empty" && r.cmp !== "not_empty" && (
-                  <Input value={r.value ?? ""} aria-label={t.contacts.value} placeholder={t.contacts.value} onChange={(e) => set((n) => void (n.data.rules[i] = { ...r, value: e.target.value }))} />
-                )}
-              </>
-            )}
-            {r.kind === "subscribed" && (
-              <div className="flex gap-2">
-                <NativeSelect className="w-40" value={r.cmp} aria-label="Taqqoslash" onChange={(e) => set((n) => void (n.data.rules[i] = { ...r, cmp: e.target.value as "before" | "after" }))}>
-                  <option value="after">{t.contacts.cmp.after}</option>
-                  <option value="before">{t.contacts.cmp.before}</option>
-                </NativeSelect>
-                <Input type="date" value={r.value} aria-label={t.contacts.value} onChange={(e) => set((n) => void (n.data.rules[i] = { ...r, value: e.target.value }))} />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-      <button
-        onClick={() => set((n) => void n.data.rules.push({ id: uid("r"), kind: "tag", tag_id: "" }))}
-        className="mt-3 flex h-12 w-full items-center justify-center gap-1.5 rounded-[12px] border border-dashed border-border-dashed text-sm font-medium hover:border-fg"
-      >
-        <Plus className="size-4" />
-        {t.builder.addCondition}
-      </button>
+      {node.data.rules.length === 0 && <p className="mb-3 text-sm text-muted">{t.builder.noConditions}</p>}
+      <RulesEditor
+        op={node.data.op}
+        rules={node.data.rules}
+        addLabel={t.builder.addCondition}
+        onChange={(op, rules) =>
+          set((n) => {
+            n.data.op = op;
+            n.data.rules = rules;
+          })
+        }
+      />
     </div>
   );
 }

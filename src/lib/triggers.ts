@@ -34,7 +34,15 @@ export function triggerSummary(t: Dictionary, type: string, config: Json): { lab
     case "ref_url":
       return { label: t.triggerTypes.ref_url, chips: c.ref ? [String(c.ref)] : [] };
     case "message_type":
-      return { label: t.triggerTypes.message_type, chips: Array.isArray(c.types) ? (c.types as string[]) : [] };
+      return {
+        label: t.triggerTypes.message_type,
+        chips: Array.isArray(c.types) ? (c.types as string[]).map((x) => t.builder.msgTypes[x as keyof Dictionary["builder"]["msgTypes"]] ?? x) : [],
+      };
+    case "date_based": {
+      const off = Number(c.offset_days ?? 0);
+      const when = off === 0 ? t.builder.offsetSame : `${Math.abs(off)} ${t.builder.daysOffset.toLowerCase()} ${off < 0 ? t.builder.offsetBefore : t.builder.offsetAfter}`;
+      return { label: t.triggerTypes.date_based, chips: c.field_name ? [String(c.field_name), `${when} ${c.time ?? "10:00"}`] : [] };
+    }
     case "tag_applied":
     case "tag_removed":
       return { label: t.triggerTypes[type], chips: c.tag_name ? [String(c.tag_name)] : [] };

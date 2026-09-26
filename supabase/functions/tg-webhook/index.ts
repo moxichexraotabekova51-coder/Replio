@@ -11,6 +11,7 @@
 import { decryptSecret } from "../_shared/crypto.ts";
 import { execute, handleInput, menuTarget, parseCallback, type ExecCtx, type Runtime, type SendMeta, type SendResult } from "../_shared/engine.ts";
 import type { BotState, CompiledFlow, Contact, Trigger } from "../_shared/flow.ts";
+import { triggerConditionsOk } from "../_shared/logic.ts";
 import { matchTrigger } from "../_shared/match.ts";
 import { stripHtml } from "../_shared/render.ts";
 
@@ -257,6 +258,7 @@ function finish(log: Record<string, unknown>) {
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const parts = url.pathname.split("/").filter(Boolean);
+  if (parts.at(-1) === "_worker" && req.method === "POST") return handleWorker(req);
   const isRun = parts.at(-1) === "run";
   const botId = (isRun ? parts.at(-2) : parts.at(-1)) ?? "";
   if (req.method !== "POST" || !/^[0-9a-f-]{36}$/.test(botId)) return new Response("not found", { status: 404 });
@@ -415,7 +417,9 @@ async function handleWebhook(req: Request, botId: string): Promise<Response> {
     }
 
     // 4) Triggerlar
-    const m = matchTrigger(c.triggers, { text, isNew: !!r.contact.is_new, messageType: info.type });
+    const env = { now: receivedAt, tz: r.timezone };
+    const eligible = c.triggers.filter((t) => triggerConditionsOk(ctx.contact, t.conditions, env));
+    const m = matchTrigger(eligible, { text, isNew: !!r.contact.is_new, messageType: info.type });
     if (m && c.flows[m.trigger.flow_id]) {
       log.trigger_id = m.trigger.id;
       log.flow_id = m.trigger.flow_id;
@@ -454,21 +458,31 @@ async function handleWebhook(req: Request, botId: string): Promise<Response> {
 // ─────────────────────────────────────────────────────────────
 // Ichki ishga tushirish: Preview / Smart Delay / Sequence / Broadcast
 // ─────────────────────────────────────────────────────────────
+type RunBody = {
+  contact_id: string;
+  flow_id: string;
+  flow?: CompiledFlow; // Preview: draft'dan kompilyatsiya qilingan
+  step?: string | null;
+  block?: number;
+  kind?: "preview" | "job" | "broadcast" | "sequence" | "trigger";
+  reset_state?: boolean;
+  expect_input?: { step: string; block: number };
+  broadcast_id?: string;
+  trigger_id?: string;
+  conditions?: unknown; // trigger shartlari (hodisa triggerlari uchun)
+  allow_unsubscribed?: boolean; // "unsubscribed" triggeri — faqat actions
+};
+type RunResult = { ok: boolean; error?: string; skipped?: boolean; sent?: number; ms?: number };
+
 async function handleRun(req: Request, botId: string): Promise<Response> {
   if (req.headers.get("authorization") !== `Bearer ${SERVICE_KEY}`) return new Response("forbidden", { status: 403 });
-  const body = (await req.json().catch(() => null)) as {
-    contact_id: string;
-    flow_id: string;
-    flow?: CompiledFlow; // Preview: draft'dan kompilyatsiya qilingan
-    step?: string | null;
-    block?: number;
-    kind?: "preview" | "job" | "broadcast" | "sequence";
-    reset_state?: boolean;
-    expect_input?: { step: string; block: number };
-    broadcast_id?: string;
-  } | null;
+  const body = (await req.json().catch(() => null)) as RunBody | null;
   if (!body?.contact_id || !body.flow_id) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
+  const r = await runInternal(botId, body);
+  return Response.json(r, { status: r.error === "not_found" ? 404 : 200 });
+}
 
+async function runInternal(botId: string, body: RunBody): Promise<RunResult> {
   const rc = await rpc<{
     ok: boolean;
     account_id: string;
@@ -481,13 +495,15 @@ async function handleRun(req: Request, botId: string): Promise<Response> {
     flows: Record<string, CompiledFlow>;
     bot_fields: Record<string, unknown>;
   }>("run_context", { p_bot_id: botId, p_contact_id: body.contact_id });
-  if (!rc?.ok) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
-  if (rc.paused && body.kind !== "preview") return Response.json({ ok: false, error: "paused" });
-  if (!rc.contact.is_subscribed && body.kind !== "preview") return Response.json({ ok: false, error: "unsubscribed" });
+  if (!rc?.ok) return { ok: false, error: "not_found" };
+  if (rc.paused && body.kind !== "preview") return { ok: false, error: "paused" };
+  if (!rc.contact.is_subscribed && body.kind !== "preview" && !body.allow_unsubscribed) return { ok: false, error: "unsubscribed" };
+  if (rc.contact.over_limit && body.kind !== "preview") return { ok: false, error: "over_limit" };
+  if (body.conditions && !triggerConditionsOk(rc.contact, body.conditions, { now: new Date(), tz: rc.timezone })) return { ok: true, skipped: true };
 
   const flows = { ...rc.flows, ...(body.flow ? { [body.flow_id]: body.flow } : {}) };
   const flow = flows[body.flow_id];
-  if (!flow) return Response.json({ ok: false, error: "flow_not_found" });
+  if (!flow) return { ok: false, error: "flow_not_found" };
 
   const token = await tokenOf(rc.token_enc);
   const outbox = new Outbox(token, null);
@@ -497,7 +513,7 @@ async function handleRun(req: Request, botId: string): Promise<Response> {
   // Data Collection timeout: foydalanuvchi hali o'sha savolda turibdimi
   if (body.expect_input) {
     const inp = rc.contact.state?.input;
-    if (!inp || inp.step_id !== body.expect_input.step || inp.block !== body.expect_input.block) return Response.json({ ok: true, skipped: true });
+    if (!inp || inp.step_id !== body.expect_input.step || inp.block !== body.expect_input.block) return { ok: true, skipped: true };
     const clear = { ...rc.contact.state };
     delete clear.input;
     const res = await rt.apply([], clear);
@@ -520,6 +536,7 @@ async function handleRun(req: Request, botId: string): Promise<Response> {
   if (body.kind !== "preview") {
     log.flow_id = body.flow_id;
     log.steps = ctx.steps;
+    if (body.trigger_id) log.trigger_id = body.trigger_id;
   }
   const last = [...outbox.messages].reverse().find((x) => (x.content as { text?: string })?.text);
   if (last) {
@@ -527,5 +544,93 @@ async function handleRun(req: Request, botId: string): Promise<Response> {
     log.inbound = false;
   }
   await rpc("log_update", { p: log }).catch((e) => console.error("log_update", e));
-  return Response.json({ ok: true, sent: outbox.messages.length, ms: Date.now() - t0 });
+  return { ok: true, sent: outbox.messages.length, ms: Date.now() - t0 };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Fon ishlari: pg_cron (har soniya, ish bo'lsa) → POST /tg-webhook/_worker
+//   Smart Delay davomi, Data Collection timeout, hodisa triggerlari, Sequences
+// ─────────────────────────────────────────────────────────────
+let workerAuthOk: { secret: string; until: number } | null = null;
+const WORKER_BUDGET_MS = 50_000;
+const WORKER_CONCURRENCY = 10;
+
+type Job = { id: string; type: string; payload: Record<string, unknown>; bot_id: string | null; conditions: unknown };
+type SeqRun = { contact_id: string; bot_id: string; flow_id: string; sequence_id: string };
+
+async function handleWorker(req: Request): Promise<Response> {
+  const secret = req.headers.get("x-worker-secret") ?? "";
+  const cached = workerAuthOk && workerAuthOk.secret === secret && workerAuthOk.until > Date.now();
+  if (!cached) {
+    const ok = await rpc<boolean>("worker_auth", { p_secret: secret }).catch(() => false);
+    if (!ok) return new Response("forbidden", { status: 403 });
+    workerAuthOk = { secret, until: Date.now() + 5 * 60_000 };
+  }
+  const p = runWorker().catch((e) => console.error("worker", e));
+  waitUntil(p);
+  // pg_net javobni kutmasin (keyingi kick parallel bo'lishi mumkin — claim SKIP LOCKED)
+  return Response.json({ ok: true });
+}
+
+async function pool<T>(items: T[], n: number, fn: (x: T) => Promise<void>) {
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (i < items.length) await fn(items[i++]);
+  }));
+}
+
+export async function runWorker(): Promise<{ jobs: number; sequences: number }> {
+  const t0 = Date.now();
+  let total = 0;
+  let totalSeq = 0;
+  while (Date.now() - t0 < WORKER_BUDGET_MS) {
+    const w = await rpc<{ jobs: Job[]; sequences: SeqRun[] }>("claim_work", { p_limit: 50 });
+    if (!w.jobs.length && !w.sequences.length) break;
+    const done: string[] = [];
+    const failed: { id: string; error: string }[] = [];
+    await pool(w.jobs, WORKER_CONCURRENCY, async (j) => {
+      try {
+        const res = await runJob(j);
+        // Qayta urinish faqat vaqtinchalik xatolarda (tarmoq); boshqa hollarda — bajarildi
+        if (!res.ok && res.error === "unreachable") failed.push({ id: j.id, error: res.error });
+        else done.push(j.id);
+      } catch (e) {
+        failed.push({ id: j.id, error: String(e) });
+      }
+    });
+    await pool(w.sequences, WORKER_CONCURRENCY, async (s) => {
+      await runInternal(s.bot_id, { contact_id: s.contact_id, flow_id: s.flow_id, kind: "sequence" }).catch((e) => console.error("seq", e));
+    });
+    await rpc("finish_jobs", { p_done: done, p_failed: failed });
+    total += w.jobs.length;
+    totalSeq += w.sequences.length;
+  }
+  return { jobs: total, sequences: totalSeq };
+}
+
+function runJob(j: Job): Promise<RunResult> {
+  const p = j.payload as Record<string, string | number | undefined>;
+  if (!j.bot_id || !p.contact_id || !p.flow_id) return Promise.resolve({ ok: false, error: "gone" });
+  const base = { contact_id: String(p.contact_id), flow_id: String(p.flow_id) };
+  switch (j.type) {
+    case "flow_step":
+      return runInternal(j.bot_id, { ...base, kind: "job", step: (p.step as string) ?? null, block: Number(p.block ?? 0) });
+    case "input_timeout":
+      return runInternal(j.bot_id, {
+        ...base,
+        kind: "job",
+        step: (p.step as string) ?? null,
+        expect_input: { step: String(p.input_step), block: Number(p.input_block ?? 0) },
+      });
+    case "trigger":
+      return runInternal(j.bot_id, {
+        ...base,
+        kind: "trigger",
+        trigger_id: p.trigger_id as string,
+        conditions: j.conditions,
+        allow_unsubscribed: p.event === "unsubscribed",
+      });
+    default:
+      return Promise.resolve({ ok: false, error: "unknown_type" });
+  }
 }

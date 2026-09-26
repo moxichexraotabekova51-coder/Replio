@@ -45,7 +45,11 @@ export type CRule =
   | { kind: "tag"; tag_id: string; neg?: boolean }
   | { kind: "field"; field_id: string; cmp: string; value?: string }
   | { kind: "system"; field: string; cmp: string; value?: string }
-  | { kind: "subscribed"; cmp: "before" | "after"; value: string };
+  | { kind: "subscribed"; cmp: "before" | "after"; value: string }
+  | { kind: "time"; from: string; to: string }; // vaqt oralig'i (akkaunt vaqt mintaqasi, "HH:MM")
+
+/** Trigger shartlari (ixtiyoriy) */
+export type CConditions = { op?: "and" | "or"; rules?: CRule[] };
 
 export type CMenuItem = { title: string; step: string | null };
 
