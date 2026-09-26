@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+/* ───────────────────────────────────────────────
+   Replio dizayn tizimi — monoxrom (2-bo'lim)
+   ─────────────────────────────────────────────── */
+:root {
+  --bg: #ffffff;
+  --bg-subtle: #fafafa;
+  --bg-muted: #f4f4f5;
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
+  --border-dashed: #a1a1aa;
+  --text: #09090b;
+  --text-muted: #71717a;
+  --primary: #000000;
+  --primary-fg: #ffffff;
+  --canvas-bg: #f4f4f5;
+  --banner-bg: #18181b;
+  --node-action: #3f3f46;
+  --node-condition: #71717a;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-fab: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-bg-muted: var(--bg-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-border-dashed: var(--border-dashed);
+  --color-fg: var(--text);
+  --color-muted: var(--text-muted);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-canvas: var(--canvas-bg);
+  --color-banner: var(--banner-bg);
+  --color-active: #e4e4e7;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --radius-card: 8px;
+  --radius-control: 6px;
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-fab: var(--shadow-fab);
+  --shadow-pop: var(--shadow-pop);
+
+  --animate-in: fade-in 120ms ease-out;
+  --animate-drawer: slide-in 160ms ease-out;
+  --animate-up: slide-up 160ms ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes slide-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slide-up {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  ::selection {
+    background: #000;
+    color: #fff;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid #000;
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .border-dashed-strong {
+    border: 1px dashed var(--border-dashed);
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #d4d4d8 transparent;
+  }
+  .hatched {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent 0 6px,
+      rgba(0, 0, 0, 0.06) 6px 7px
+    );
+  }
+}
