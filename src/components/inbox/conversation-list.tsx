@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowUpDown, CheckCheck, ChevronDown, MessageCircle, Plus, Tag, X, XCircle } from "lucide-react";
+import { ArrowUpDown, CheckCheck, ChevronDown, MessageCircle, Plus, Tag, UserRound, X, XCircle } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { usePermissions } from "@/components/providers/app-provider";
+import { useApp, usePermissions } from "@/components/providers/app-provider";
 import { Avatar } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -28,6 +28,9 @@ import {
   type Conversation,
   type InboxFilters,
 } from "@/lib/queries/inbox";
+import { useAssign } from "@/lib/queries/live-chat";
+import { usePricingModal } from "@/lib/stores/ui";
+import { planFeatures } from "@/lib/billing";
 import { timeShort } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { LabelIcon } from "./label-icon";
@@ -63,6 +66,10 @@ export function ConversationList({
   const labels = useLabels();
   const update = useUpdateConversations();
   const toggleLabel = useToggleLabel();
+  const members = useMembers();
+  const assign = useAssign();
+  const showPricing = usePricingModal((s) => s.show);
+  const assignPro = !!planFeatures(useApp().plan).live_chat_assign;
   const sentinel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -118,6 +125,23 @@ export function ConversationList({
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger className={chip} onClick={(e) => { if (!assignPro) { e.preventDefault(); showPricing("pro"); } }}>
+                <UserRound className="size-4" />
+                {t.inbox.bulkAssign}
+                {!assignPro && <span className="rounded-[4px] bg-fg px-1 text-[9px] font-bold text-bg">{t.builder.upgradeBadge}</span>}
+              </DropdownMenuTrigger>
+              {assignPro && (
+                <DropdownMenuContent>
+                  {members.data?.map((m) => (
+                    <DropdownMenuItem key={m.user_id} onSelect={() => assign.mutate({ ids, userId: m.user_id }, { onSuccess: () => setChecked(new Set()) })}>
+                      {m.profile?.full_name ?? "—"}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuItem onSelect={() => assign.mutate({ ids, userId: null }, { onSuccess: () => setChecked(new Set()) })}>{t.inbox.unassign}</DropdownMenuItem>
+                </DropdownMenuContent>
+              )}
             </DropdownMenu>
             <button className="ml-auto flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-bg-muted" onClick={() => setChecked(new Set())} aria-label={t.common.clearSelection}>
               <X className="size-4" />

@@ -12,6 +12,10 @@ export function SectionTitle({ title, description, action }: { title: string; de
   );
 }
 
-export function Card({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <section className={cn("rounded-[8px] border border-border bg-bg p-6 shadow-sm", className)}>{children}</section>;
+export function Card({ className, children, ...rest }: React.HTMLAttributes<HTMLElement> & { "data-testid"?: string }) {
+  return (
+    <section className={cn("rounded-[8px] border border-border bg-bg p-6 shadow-sm", className)} {...rest}>
+      {children}
+    </section>
+  );
 }

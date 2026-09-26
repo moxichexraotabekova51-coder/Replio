@@ -1,6 +1,6 @@
 "use client";
 
-import { Gift, Hand, Menu, MessageSquare, Phone, Plus, Zap, type LucideIcon } from "lucide-react";
+import { Gift, Hand, HelpCircle, Menu, MessageSquare, Phone, Plus, Star, Zap, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -17,6 +17,8 @@ const ICONS: Record<string, LucideIcon> = {
   menu: Menu,
   gift: Gift,
   zap: Zap,
+  "help-circle": HelpCircle,
+  star: Star,
 };
 
 export function NewAutomationDialog({

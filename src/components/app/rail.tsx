@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { LogoMark } from "@/components/brand/logo";
+import { useHasUnread } from "@/lib/queries/live-chat";
 import { useApp } from "@/components/providers/app-provider";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -42,6 +43,7 @@ export function Rail() {
   const t = useT();
   const pathname = usePathname();
   const app = useApp();
+  const { data: hasUnread } = useHasUnread();
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
@@ -91,7 +93,7 @@ export function Rail() {
         {items.map((item) => {
           const active = isActive(pathname, item.href);
           const Icon = item.icon;
-          const showDot = item.key === "inbox" && app.hasUnread;
+          const showDot = item.key === "inbox" && hasUnread;
           return (
             <Tooltip key={item.key} content={item.label(t)} disabled={expanded}>
               <Link

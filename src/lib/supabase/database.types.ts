@@ -222,6 +222,45 @@ export type Database = {
           },
         ];
       };
+      broadcast_recipients: {
+        Row: {
+          broadcast_id: string;
+          contact_id: string;
+          status: number;
+          error: string | null;
+          sent_at: string | null;
+        };
+        Insert: {
+          broadcast_id: string;
+          contact_id: string;
+          status?: number;
+          error?: string | null;
+          sent_at?: string | null;
+        };
+        Update: {
+          broadcast_id?: string;
+          contact_id?: string;
+          status?: number;
+          error?: string | null;
+          sent_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_recipients_broadcast_id_fkey";
+            columns: ["broadcast_id"];
+            isOneToOne: false;
+            referencedRelation: "broadcasts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "broadcast_recipients_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       broadcasts: {
         Row: {
           id: string;
@@ -443,6 +482,7 @@ export type Database = {
           over_limit: boolean;
           search: string | null;
           bot_state: Json;
+          source: string | null;
         };
         Insert: {
           id?: string;
@@ -465,6 +505,7 @@ export type Database = {
           last_message_at?: string | null;
           over_limit?: boolean;
           bot_state?: Json;
+          source?: string | null;
         };
         Update: {
           id?: string;
@@ -487,6 +528,7 @@ export type Database = {
           last_message_at?: string | null;
           over_limit?: boolean;
           bot_state?: Json;
+          source?: string | null;
         };
         Relationships: [
           {
@@ -1098,6 +1140,7 @@ export type Database = {
           note: string | null;
           done: boolean;
           created_at: string;
+          notified_at: string | null;
         };
         Insert: {
           id?: string;
@@ -1108,6 +1151,7 @@ export type Database = {
           note?: string | null;
           done?: boolean;
           created_at?: string;
+          notified_at?: string | null;
         };
         Update: {
           id?: string;
@@ -1118,6 +1162,7 @@ export type Database = {
           note?: string | null;
           done?: boolean;
           created_at?: string;
+          notified_at?: string | null;
         };
         Relationships: [
           {
@@ -1487,7 +1532,10 @@ export type Database = {
       handle_update: { Args: { p_bot_id: string; p_secret: string; p_from: Json; p_cached_version?: number; p_subscribed?: boolean }; Returns: Json };
       preview_flow: { Args: { p_bot_id: string; p_flow_id: string; p_contact_id: string }; Returns: Json };
       log_update: { Args: { p: Json }; Returns: undefined };
+      broadcast_clicks: { Args: { p_account_id: string }; Returns: { broadcast_id: string; clicked: number }[] };
       my_preview: { Args: { p_account_id: string }; Returns: Json };
+      requeue_job: { Args: { p_id: string }; Returns: undefined };
+      kick_worker: { Args: Record<PropertyKey, never>; Returns: boolean };
       contact_filter_sql: { Args: { p_filter: Json; p_search: string }; Returns: string };
       my_accounts: { Args: { p_roles?: Database["public"]["Enums"]["member_role"][] }; Returns: string[] };
       contacts_page: { Args: { p_account_id: string; p_filter?: Json; p_search?: string; p_before?: string; p_before_id?: string; p_limit?: number }; Returns: { id: string; first_name: string; last_name: string; username: string; avatar_url: string; subscribed_at: string; last_interaction_at: string; is_subscribed: boolean; tags: Json }[] };
@@ -1504,10 +1552,20 @@ export type Database = {
       enqueue_trigger_events: { Args: { p_type: string; p_events: Json }; Returns: number };
       enqueue_date_triggers: { Args: Record<PropertyKey, never>; Returns: number };
       webhook_event: { Args: { p_account_id: string; p_trigger_id: string; p_secret: string; p_contact_id: string; p_tg_user_id: number; p_fields: Json }; Returns: Json };
-      claim_work: { Args: { p_limit?: number }; Returns: Json };
       finish_jobs: { Args: { p_done: string[]; p_failed?: Json }; Returns: undefined };
-      kick_worker: { Args: Record<PropertyKey, never>; Returns: boolean };
+      claim_work: { Args: { p_limit?: number }; Returns: Json };
       purge_jobs: { Args: Record<PropertyKey, never>; Returns: undefined };
+      broadcast_audience_count: { Args: { p_account_id: string; p_audience: Json }; Returns: number };
+      broadcast_report: { Args: { p_id: string; p_ok: string[]; p_failed?: Json }; Returns: undefined };
+      broadcast_batch: { Args: { p_id: string; p_limit?: number }; Returns: Json };
+      auto_close_chats: { Args: Record<PropertyKey, never>; Returns: number };
+      record_agent_message: { Args: { p_contact_id: string; p_author: string; p_direction: Database["public"]["Enums"]["message_direction"]; p_type: string; p_content: Json; p_tg_message_id: number }; Returns: Json };
+      create_broadcast: { Args: { p_account_id: string; p_name?: string }; Returns: string };
+      broadcast_audience_sql: { Args: { p_account_id: string; p_audience: Json }; Returns: string };
+      start_broadcast: { Args: { p_id: string; p_at?: string }; Returns: Json };
+      cancel_broadcast: { Args: { p_id: string }; Returns: undefined };
+      growth_start: { Args: { p_bot_id: string; p_contact_id: string; p_code: string; p_is_new: boolean }; Returns: Json };
+      growth_view: { Args: { p_id: string }; Returns: Json };
     };
     Enums: {
       member_role: "admin" | "editor" | "agent" | "viewer";

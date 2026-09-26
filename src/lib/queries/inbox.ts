@@ -44,6 +44,7 @@ export type Conversation = {
   last_message_at: string | null;
   assigned_to: string | null;
   automation_paused_until: string | null;
+  is_subscribed?: boolean;
   contact_labels: { label_id: string }[];
 };
 
@@ -61,7 +62,7 @@ export const inboxKeys = {
 };
 
 const CONVERSATION_COLS =
-  "id, first_name, last_name, username, avatar_url, is_unread, live_chat_status, last_message_preview, last_message_at, assigned_to, automation_paused_until, contact_labels(label_id)";
+  "id, first_name, last_name, username, avatar_url, is_unread, live_chat_status, last_message_preview, last_message_at, assigned_to, automation_paused_until, is_subscribed, contact_labels(label_id)";
 
 /** Tanlangan suhbat — ro'yxatdan mustaqil (filtrdan chiqib ketsa ham yangilanadi) */
 export function useContact(id: string | null, initial?: Conversation | null) {
@@ -251,9 +252,11 @@ export type Message = {
   id: string;
   direction: Enums<"message_direction">;
   type: string;
-  content: { text?: string; caption?: string; file_name?: string } | null;
+  content: { text?: string; caption?: string; file_name?: string; url?: string; media?: string } | null;
   created_at: string;
   author_id: string | null;
+  /** optimistik xabar yuborilmadi */
+  failed?: boolean;
 };
 
 export function useMessages(contactId: string | null) {

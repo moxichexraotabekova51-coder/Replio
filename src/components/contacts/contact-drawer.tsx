@@ -40,15 +40,32 @@ type Detail = {
   contact_sequences: { sequence_id: string; current_step: number; sequences: { name: string } | null }[];
 };
 
-export function ContactDrawer({ contactId, onClose }: { contactId: string | null; onClose: () => void }) {
+export function ContactDrawer({ contactId, onClose, extra, compact }: { contactId: string | null; onClose: () => void; extra?: React.ReactNode; compact?: boolean }) {
   return (
     <Dialog open={!!contactId} onOpenChange={(v) => !v && onClose()}>
-      <DrawerContent aria-describedby={undefined}>{contactId && <DrawerBody id={contactId} onClose={onClose} />}</DrawerContent>
+      <DrawerContent aria-describedby={undefined}>
+        {contactId && <ContactProfile id={contactId} onClose={onClose} extra={extra} hideInboxLink={compact} />}
+      </DrawerContent>
     </Dialog>
   );
 }
 
-function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
+/** Kontakt profili: Contacts drawer'ida (variant="drawer") va Inbox'ning o'ng panelida (variant="panel") */
+export function ContactProfile({
+  id,
+  onClose,
+  variant = "drawer",
+  extra,
+  hideInboxLink,
+}: {
+  id: string;
+  onClose?: () => void;
+  variant?: "drawer" | "panel";
+  extra?: React.ReactNode;
+  hideInboxLink?: boolean;
+}) {
+  const panel = variant === "panel";
+  const Title = panel ? "h2" : DialogTitle;
   const t = useT();
   const app = useApp();
   const perms = usePermissions();
@@ -91,7 +108,7 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
   if (q.isLoading || !c) {
     return (
       <div className="space-y-4 p-6">
-        <DialogTitle className="sr-only">{t.contacts.profile}</DialogTitle>
+        <Title className="sr-only">{t.contacts.profile}</Title>
         <Skeleton className="size-16 rounded-full" />
         <Skeleton className="h-6 w-48" />
         <Skeleton className="h-32 w-full" />
@@ -103,10 +120,10 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
 
   return (
     <>
-      <div className="flex items-center gap-4 border-b border-border px-6 py-5 pr-14">
-        <Avatar src={c.avatar_url} name={name} size={56} silhouette={!c.avatar_url} />
+      <div className={cn("flex items-center gap-4 border-b border-border py-5", panel ? "px-5" : "px-6 pr-14")}>
+        <Avatar src={c.avatar_url} name={name} size={panel ? 44 : 56} silhouette={!c.avatar_url} />
         <div className="min-w-0">
-          <DialogTitle className="truncate pr-0 text-[20px]">{name}</DialogTitle>
+          <Title className={cn("truncate pr-0 font-semibold", panel ? "text-[17px]" : "text-[20px]")}>{name}</Title>
           {c.username && (
             <a href={`https://t.me/${c.username}`} target="_blank" rel="noopener noreferrer" className="text-sm text-muted hover:underline">
               @{c.username}
@@ -114,11 +131,14 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
           )}
         </div>
       </div>
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5 scrollbar-thin">
-        <Link href={`/app/inbox?c=${c.id}`} className={cn(buttonVariants({ variant: "secondary" }), "w-full")}>
-          <MessageCircle className="size-4" />
-          {t.contacts.openInInbox}
-        </Link>
+      <div className={cn("min-h-0 flex-1 space-y-6 overflow-y-auto py-5 scrollbar-thin", panel ? "px-5" : "px-6")}>
+        {!panel && !hideInboxLink && (
+          <Link href={`/app/inbox?c=${c.id}`} className={cn(buttonVariants({ variant: "secondary" }), "w-full")}>
+            <MessageCircle className="size-4" />
+            {t.contacts.openInInbox}
+          </Link>
+        )}
+        {extra}
 
         <Section title={t.contacts.info}>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -220,6 +240,7 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
           )}
         </Section>
 
+        {!panel && (
         <Section title={t.contacts.historyTitle}>
           {messages.isLoading ? (
             <Skeleton className="h-20 w-full" />
@@ -242,8 +263,9 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
             </div>
           )}
         </Section>
+        )}
 
-        {perms.canEdit && (
+        {perms.canEdit && !panel && (
           <Button variant="outline" className="w-full" onClick={() => setConfirmDelete(true)}>
             <Trash2 className="size-4" />
             {t.contacts.deleteContact}
@@ -259,7 +281,7 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
         confirmLabel={t.common.delete}
         onConfirm={async () => {
           await run.mutateAsync(() => supabase.from("contacts").delete().eq("id", c.id));
-          onClose();
+          onClose?.();
         }}
       />
     </>

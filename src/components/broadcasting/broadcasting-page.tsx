@@ -1,10 +1,13 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { Send } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Plus, Send } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/app/page-header";
-import { useApp } from "@/components/providers/app-provider";
+import { useApp, usePermissions } from "@/components/providers/app-provider";
+import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/lib/i18n/provider";
@@ -18,7 +21,26 @@ type Stats = { total?: number; sent?: number; delivered?: number; clicked?: numb
 export function BroadcastingPage() {
   const t = useT();
   const app = useApp();
+  const router = useRouter();
+  const { canEdit } = usePermissions();
   const [tab, setTab] = useState<Tab>("draft");
+  const create = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await createClient().rpc("create_broadcast", { p_account_id: app.account.id, p_name: "Untitled" });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (id) => router.push(`/app/broadcasting/${id}`),
+    onError: () => toast.error(t.errors.generic),
+  });
+  const clicks = useQuery({
+    queryKey: [app.account.id, "broadcast-clicks"],
+    enabled: tab === "sent",
+    queryFn: async () => {
+      const { data } = await createClient().rpc("broadcast_clicks", { p_account_id: app.account.id });
+      return new Map((data ?? []).map((r) => [r.broadcast_id, Number(r.clicked)]));
+    },
+  });
 
   const q = useQuery({
     queryKey: [app.account.id, "broadcasts", tab],
@@ -45,7 +67,14 @@ export function BroadcastingPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title={t.broadcasting.title} />
+      <PageHeader title={t.broadcasting.title}>
+        {canEdit && (
+          <Button size="lg" className="ml-auto h-12" onClick={() => create.mutate()} loading={create.isPending}>
+            <Plus className="size-5" />
+            {t.broadcasting.newBroadcast}
+          </Button>
+        )}
+      </PageHeader>
       <div className="px-4 py-6 md:px-11 md:py-8">
         <div role="tablist" className="flex gap-6 border-b border-border">
           {tabs.map((x) => (
@@ -101,8 +130,12 @@ export function BroadcastingPage() {
                   const s = (b.stats ?? {}) as Stats;
                   const aud = (b.audience ?? {}) as { type?: string };
                   return (
-                    <tr key={b.id} className="h-14 border-t border-border">
-                      <td className="px-4 font-medium">{b.name}</td>
+                    <tr key={b.id} className="h-14 cursor-pointer border-t border-border hover:bg-bg-subtle" onClick={() => router.push(`/app/broadcasting/${b.id}`)}>
+                      <td className="px-4 font-medium">
+                        {b.name}
+                        {b.status === "sending" && <span className="ml-2 rounded-[4px] bg-fg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-bg">{t.broadcasting.statusSending}</span>}
+                        {b.status === "failed" && <span className="ml-2 text-[12px] text-muted">⚠ {t.broadcasting.statusFailed}</span>}
+                      </td>
                       <td className="px-4 text-muted">{aud.type === "all" ? t.broadcasting.audienceAll : t.broadcasting.audienceFiltered}</td>
                       <td className="px-4 text-muted">
                         {formatDate(tab === "draft" ? b.created_at : tab === "scheduled" ? b.scheduled_at : b.sent_at, app.account.timezone, true)}
@@ -111,7 +144,7 @@ export function BroadcastingPage() {
                         <>
                           <td className="px-4 text-right">{formatNumber(s.sent ?? 0)}</td>
                           <td className="px-4 text-right">{formatNumber(s.delivered ?? 0)}</td>
-                          <td className="px-4 text-right">{percent(s.clicked ?? 0, s.delivered ?? 0)}</td>
+                          <td className="px-4 text-right">{percent(clicks.data?.get(b.id) ?? 0, s.delivered ?? 0)}</td>
                           <td className="px-4 text-right">{formatNumber(s.failed ?? 0)}</td>
                         </>
                       )}

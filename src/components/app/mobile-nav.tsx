@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoMark } from "@/components/brand/logo";
+import { useHasUnread } from "@/lib/queries/live-chat";
 import { useApp } from "@/components/providers/app-provider";
 import { useT } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ export function MobileBottomNav() {
   const t = useT();
   const pathname = usePathname();
   const app = useApp();
+  const { data: hasUnread } = useHasUnread();
   const items = NAV.filter((n) => app.account.role !== "agent" || n.agent);
   return (
     <nav className="flex h-16 shrink-0 items-stretch border-t border-border bg-bg-subtle md:hidden" aria-label="Navigatsiya">
@@ -50,7 +52,7 @@ export function MobileBottomNav() {
           >
             <span className="relative">
               <Icon className="size-5" strokeWidth={active ? 2.25 : 1.75} />
-              {item.key === "inbox" && app.hasUnread && (
+              {item.key === "inbox" && hasUnread && (
                 <span className="absolute -right-1 -top-0.5 size-1.5 rounded-full bg-fg" />
               )}
             </span>

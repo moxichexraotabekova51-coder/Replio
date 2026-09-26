@@ -24,7 +24,9 @@ import { TextBlockEditor } from "./text-block-editor";
 const DELAYS = [1, 2, 3, 5, 10, 15, 20, 30, 45, 60];
 
 /** 12.2 — "Send Message" tahriri: bloklar ketma-ketligi va kontent qo'shish kartochkalari */
-export function MessageStepEditor({ node, readOnly, mode = "flow" }: { node: MessageNode; readOnly?: boolean; mode?: "flow" | "basic" }) {
+/** mode: "flow" — to'liq; "basic" — matn/delay, URL tugmalar; "broadcast" — barcha bloklar, tugmalar URL/avtomatlashtirish (step'siz), menyusiz */
+export function MessageStepEditor({ node, readOnly, mode = "flow" }: { node: MessageNode; readOnly?: boolean; mode?: "flow" | "basic" | "broadcast" }) {
+  const rich = mode !== "basic";
   const t = useT();
   const app = useApp();
   const showPricing = usePricingModal((s) => s.show);
@@ -125,7 +127,7 @@ export function MessageStepEditor({ node, readOnly, mode = "flow" }: { node: Mes
                 </div>
               </>
             )}
-            {b.type === "text" && <TextBlockEditor block={b} invalid={invalid} onChange={(nb) => setBlock(i, nb)} buttonKinds={mode === "flow" ? ["step", "url", "flow"] : ["url"]} />}
+            {b.type === "text" && <TextBlockEditor block={b} invalid={invalid} onChange={(nb) => setBlock(i, nb)} buttonKinds={mode === "flow" ? ["step", "url", "flow"] : mode === "broadcast" ? ["url", "flow"] : ["url"]} />}
             {(b.type === "image" || b.type === "video" || b.type === "audio" || b.type === "file" || b.type === "gif") && (
               <MediaBlockEditor block={b} invalid={invalid} onChange={(nb) => setBlock(i, nb)} />
             )}
@@ -174,11 +176,11 @@ export function MessageStepEditor({ node, readOnly, mode = "flow" }: { node: Mes
           <p className="mb-3 text-[13px] text-muted">{t.builder.addContent}</p>
           <div className="grid grid-cols-2 gap-3">
             <AddCard icon={<Type className="size-5" />} title={t.builder.blockText} desc={t.builder.blockTextDesc} onClick={() => addBlock({ id: uid("b"), type: "text", text: "", buttons: [] })} />
-            {mode === "flow" && (
+            {rich && (
               <AddCard icon={<ImageIcon className="size-5" />} title={t.builder.blockImage} desc={t.builder.blockImageDesc} onClick={() => addBlock({ id: uid("b"), type: "image", url: "" })} />
             )}
             <AddCard icon={<Clock className="size-5" />} title={t.builder.blockDelay} desc={t.builder.blockDelayDesc} onClick={() => addBlock({ id: uid("b"), type: "delay", seconds: 3 })} />
-            {mode === "flow" && (
+            {rich && (
               <>
                 <AddCard
                   icon={<TextCursorInput className="size-5" />}

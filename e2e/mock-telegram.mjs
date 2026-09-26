@@ -9,6 +9,7 @@ const port = Number(process.env.MOCK_TELEGRAM_PORT ?? 4020);
 const bots = new Map(); // token -> { id, username, webhook: {url, secret} }
 let sent = [];
 let msgId = 1000;
+const blocked = new Set();
 
 function botFor(token) {
   if (!/^\d+:[\w-]{30,}$/.test(token) || token.includes("invalid")) return null;
@@ -33,6 +34,18 @@ createServer(async (req, res) => {
   if (url.pathname === "/__reset") {
     sent = [];
     return send(res, 200, { ok: true });
+  }
+  // Botni bloklagan foydalanuvchilar (send* → 403)
+  if (url.pathname === "/__block") {
+    for (const id of body.chat_ids ?? []) blocked.add(String(id));
+    return send(res, 200, { ok: true });
+  }
+  if (url.pathname === "/__count") {
+    const since = Number(url.searchParams.get("since") ?? 0);
+    const lo = Number(url.searchParams.get("from") ?? -Infinity);
+    const hi = Number(url.searchParams.get("to") ?? Infinity);
+    const list = sent.filter((m) => m.method === "sendMessage" && (m.at ?? 0) >= since && Number(m.chat_id) >= lo && Number(m.chat_id) <= hi);
+    return send(res, 200, { count: list.length, first: list.length ? Math.min(...list.map((m) => m.at)) : null, chats: new Set(list.map((m) => String(m.chat_id))).size });
   }
   if (url.pathname === "/__sent") {
     const chat = url.searchParams.get("chat_id");
@@ -76,6 +89,9 @@ createServer(async (req, res) => {
     case "getWebhookInfo":
       return send(res, 200, { ok: true, result: { url: bot.webhook?.url ?? "", pending_update_count: 0 } });
     default:
+      if (method.startsWith("send") && method !== "sendChatAction" && blocked.has(String(body.chat_id))) {
+        return send(res, 403, { ok: false, error_code: 403, description: "Forbidden: bot was blocked by the user" });
+      }
       if (method === "sendMessage" && typeof body.text === "string" && body.parse_mode === "HTML" && /<(?!\/?(b|i|u|s|code|pre|a)[\s>])/.test(body.text)) {
         return send(res, 400, { ok: false, error_code: 400, description: "Bad Request: can't parse entities" });
       }

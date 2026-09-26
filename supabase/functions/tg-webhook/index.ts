@@ -134,7 +134,16 @@ class Outbox {
   realSent = false;
   firstSentAt: string | null = null;
   messages: Record<string, unknown>[] = [];
+  /** Yuborilmagan xabarlar (broadcast statistikasi uchun) */
+  errors: { code: number; description: string }[] = [];
+  delivered = 0;
   constructor(private token: string, private holdChat: number | null) {}
+
+  private track(r: TgResponse, method: string) {
+    if (method === "sendChatAction") return;
+    if (r.ok) this.delivered++;
+    else this.errors.push({ code: r.error_code ?? 0, description: r.description ?? "" });
+  }
 
   private record(method: string, payload: Record<string, unknown>, meta: SendMeta, messageId: number | null) {
     if (method === "sendChatAction" || meta.type === "notify") return;
@@ -158,6 +167,7 @@ class Outbox {
     await this.flush();
     this.realSent = true;
     const r = await sendTg(this.token, method, payload);
+    this.track(r, method);
     this.record(method, payload, meta, r.result?.message_id ?? null);
     return { ok: r.ok, message_id: r.result?.message_id ?? null };
   }
@@ -168,6 +178,7 @@ class Outbox {
     this.held = null;
     this.realSent = true;
     const r = await sendTg(this.token, h.method, h.payload);
+    this.track(r, h.method);
     this.record(h.method, h.payload, h.meta, r.result?.message_id ?? null);
   }
 
@@ -416,7 +427,24 @@ async function handleWebhook(req: Request, botId: string): Promise<Response> {
       return;
     }
 
-    // 4) Triggerlar
+    // 4) Growth Tools: /start <kod> — statistika va (bo'lsa) tanlangan avtomatlashtirish
+    const startCode = text ? /^\/start(?:@\w+)?\s+([A-Za-z0-9_-]{1,64})$/.exec(text.trim())?.[1] : undefined;
+    if (startCode) {
+      const g = await rpc<{ id: string; flow_id: string | null } | null>("growth_start", {
+        p_bot_id: botId,
+        p_contact_id: r.contact.id,
+        p_code: startCode,
+        p_is_new: !!r.contact.is_new,
+      }).catch(() => null);
+      const gf = g?.flow_id ? flowOf(g.flow_id) : undefined;
+      if (g?.flow_id && gf) {
+        log.flow_id = g.flow_id;
+        await execute(rt, ctx, g.flow_id, gf, gf.start);
+        return;
+      }
+    }
+
+    // 5) Triggerlar
     const env = { now: receivedAt, tz: r.timezone };
     const eligible = c.triggers.filter((t) => triggerConditionsOk(ctx.contact, t.conditions, env));
     const m = matchTrigger(eligible, { text, isNew: !!r.contact.is_new, messageType: info.type });
@@ -472,7 +500,7 @@ type RunBody = {
   conditions?: unknown; // trigger shartlari (hodisa triggerlari uchun)
   allow_unsubscribed?: boolean; // "unsubscribed" triggeri — faqat actions
 };
-type RunResult = { ok: boolean; error?: string; skipped?: boolean; sent?: number; ms?: number };
+type RunResult = { ok: boolean; error?: string; skipped?: boolean; sent?: number; delivered?: number; failed?: { code: number; description: string }[]; ms?: number };
 
 async function handleRun(req: Request, botId: string): Promise<Response> {
   if (req.headers.get("authorization") !== `Bearer ${SERVICE_KEY}`) return new Response("forbidden", { status: 403 });
@@ -544,7 +572,7 @@ async function runInternal(botId: string, body: RunBody): Promise<RunResult> {
     log.inbound = false;
   }
   await rpc("log_update", { p: log }).catch((e) => console.error("log_update", e));
-  return { ok: true, sent: outbox.messages.length, ms: Date.now() - t0 };
+  return { ok: true, sent: outbox.messages.length, delivered: outbox.delivered, failed: outbox.errors, ms: Date.now() - t0 };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -561,7 +589,8 @@ type SeqRun = { contact_id: string; bot_id: string; flow_id: string; sequence_id
 async function handleWorker(req: Request): Promise<Response> {
   const secret = req.headers.get("x-worker-secret") ?? "";
   const cached = workerAuthOk && workerAuthOk.secret === secret && workerAuthOk.until > Date.now();
-  if (!cached) {
+  const service = req.headers.get("authorization") === `Bearer ${SERVICE_KEY}`; // Next.js: broadcast "Send" darhol
+  if (!cached && !service) {
     const ok = await rpc<boolean>("worker_auth", { p_secret: secret }).catch(() => false);
     if (!ok) return new Response("forbidden", { status: 403 });
     workerAuthOk = { secret, until: Date.now() + 5 * 60_000 };
@@ -581,6 +610,7 @@ async function pool<T>(items: T[], n: number, fn: (x: T) => Promise<void>) {
 
 export async function runWorker(): Promise<{ jobs: number; sequences: number }> {
   const t0 = Date.now();
+  const broadcasts: Promise<void>[] = [];
   let total = 0;
   let totalSeq = 0;
   while (Date.now() - t0 < WORKER_BUDGET_MS) {
@@ -588,7 +618,8 @@ export async function runWorker(): Promise<{ jobs: number; sequences: number }> 
     if (!w.jobs.length && !w.sequences.length) break;
     const done: string[] = [];
     const failed: { id: string; error: string }[] = [];
-    await pool(w.jobs, WORKER_CONCURRENCY, async (j) => {
+    for (const b of w.jobs.filter((j) => j.type === "broadcast")) broadcasts.push(runBroadcast(b, t0 + WORKER_BUDGET_MS));
+    await pool(w.jobs.filter((j) => j.type !== "broadcast"), WORKER_CONCURRENCY, async (j) => {
       try {
         const res = await runJob(j);
         // Qayta urinish faqat vaqtinchalik xatolarda (tarmoq); boshqa hollarda — bajarildi
@@ -605,7 +636,48 @@ export async function runWorker(): Promise<{ jobs: number; sequences: number }> 
     total += w.jobs.length;
     totalSeq += w.sequences.length;
   }
+  await Promise.all(broadcasts);
   return { jobs: total, sequences: totalSeq };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Broadcast: ~25 xabar/soniya (Telegram limiti), 429 — sendTg ichida retry_after
+// ─────────────────────────────────────────────────────────────
+const BROADCAST_RATE = Number(Deno.env.get("BROADCAST_RATE") ?? 25);
+
+async function runBroadcast(job: Job, deadline: number): Promise<void> {
+  const id = String(job.payload.broadcast_id);
+  try {
+    while (Date.now() < deadline - 1500) {
+      const tick = Date.now();
+      const b = await rpc<{ done: boolean; bot_id?: string; flow_id?: string; contacts?: string[] }>("broadcast_batch", { p_id: id, p_limit: BROADCAST_RATE });
+      if (b.done) {
+        await rpc("finish_jobs", { p_done: [job.id], p_failed: [] });
+        return;
+      }
+      const ok: string[] = [];
+      const bad: { contact_id: string; error: string; blocked: boolean }[] = [];
+      await Promise.all(
+        (b.contacts ?? []).map(async (cid) => {
+          const r = await runInternal(b.bot_id!, { contact_id: cid, flow_id: b.flow_id!, kind: "broadcast", broadcast_id: id }).catch(
+            (e) => ({ ok: false, error: String(e) }) as RunResult,
+          );
+          if (r.ok && (r.delivered ?? 0) > 0 && !(r.failed?.length)) ok.push(cid);
+          else {
+            const f = r.failed?.[0];
+            bad.push({ contact_id: cid, error: f ? `${f.code} ${f.description}` : (r.error ?? "not_sent"), blocked: f?.code === 403 || r.error === "unsubscribed" });
+          }
+        }),
+      );
+      await rpc("broadcast_report", { p_id: id, p_ok: ok, p_failed: bad });
+      const wait = 1000 - (Date.now() - tick);
+      if (wait > 0) await new Promise((res) => setTimeout(res, wait));
+    }
+    await rpc("requeue_job", { p_id: job.id }); // davomi — keyingi worker chaqiruvida
+  } catch (e) {
+    console.error("broadcast", e);
+    await rpc("requeue_job", { p_id: job.id }).catch(() => undefined);
+  }
 }
 
 function runJob(j: Job): Promise<RunResult> {

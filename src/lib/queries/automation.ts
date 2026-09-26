@@ -54,6 +54,7 @@ export function useFlows() {
         .select(FLOW_COLS)
         .eq("account_id", acc)
         .is("deleted_at", null)
+        .or("basic_kind.is.null,basic_kind.neq.broadcast") // broadcast xabarlari — Broadcasting bo'limida
         .order("updated_at", { ascending: false })
         .limit(2000);
       if (error) throw error;

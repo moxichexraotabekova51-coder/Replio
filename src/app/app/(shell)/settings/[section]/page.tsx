@@ -5,6 +5,7 @@ import { ApiSection } from "@/components/settings/api-section";
 import { BillingSection } from "@/components/settings/billing-section";
 import { FieldsSection } from "@/components/settings/fields-section";
 import { GeneralSection } from "@/components/settings/general-section";
+import { GrowthSection } from "@/components/settings/growth-section";
 import { InboxSection } from "@/components/settings/inbox-section";
 import { LogsSection } from "@/components/settings/logs-section";
 import { SECTIONS, type SettingsSection } from "@/components/settings/sections";
@@ -37,6 +38,7 @@ export default async function SettingsSectionPage({ params }: Props) {
     fields: <FieldsSection bot={false} />,
     "bot-fields": <FieldsSection bot />,
     inbox: <InboxSection />,
+    growth: <GrowthSection />,
     billing: (
       <Suspense>
         <BillingSection />
