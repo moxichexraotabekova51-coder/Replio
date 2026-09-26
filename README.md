@@ -57,6 +57,16 @@ supabase secrets set BOT_TOKEN_KEY=<Vercel'dagi bilan BIR XIL 64 hex>
 supabase functions deploy tg-webhook --no-verify-jwt   # Telegram JWT yubormaydi; himoya — secret_token
 ```
 
+Fon ishlari (Smart Delay, Sequences, hodisa triggerlari) uchun worker manzilini bir marta yozing (SQL editor):
+
+```sql
+insert into private.settings (key, value)
+values ('functions_url', 'https://<project-ref>.supabase.co/functions/v1')
+on conflict (key) do update set value = excluded.value;
+```
+
+pg_cron har soniyada navbatni tekshiradi va ish bo'lsagina `POST /functions/v1/tg-webhook/_worker` chaqiradi (`x-worker-secret` — `private.settings.worker_secret`).
+
 `BOT_TOKEN_KEY` Vercel va Supabase secrets'da **bir xil** bo'lishi shart (token Next.js'da shifrlanadi, Edge Function'da ochiladi).
 
 ## Telegram botni ulash
@@ -87,6 +97,7 @@ npm run db:test                # migratsiyalar + RLS testlari toza Postgres'da (
 npm run e2e:mock-checkout &    # checkout.uz soxta serveri (:4010)
 node e2e/mock-telegram.mjs &   # Telegram Bot API soxta serveri (:4020)
 supabase functions serve --env-file supabase/functions/.env.local &   # BOT_TOKEN_KEY, TELEGRAM_API_URL=http://host.docker.internal:4020
+psql "$DB_URL" -c "insert into private.settings values ('functions_url','http://supabase_kong_replio:8000/functions/v1') on conflict (key) do update set value = excluded.value"
 deno test supabase/functions/_shared/   # runtime unit testlari
 npm run dev &
 CHROME_PATH=/path/to/chromium npm run e2e   # 13-bo'lim bo'yicha tugmalarni bosib tekshiradi
