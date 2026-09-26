@@ -292,11 +292,11 @@ begin
 
     execute $p$
       create policy media_insert on storage.objects for insert to authenticated
-      with check (bucket_id = 'media' and ((storage.foldername(name))[1])::uuid in (select public.my_accounts('{admin,editor}'::public.member_role[])))
+      with check (bucket_id = 'media' and (storage.foldername(name))[1] in (select public.my_accounts('{admin,editor}'::public.member_role[])::text))
     $p$;
     execute $p$
       create policy media_delete on storage.objects for delete to authenticated
-      using (bucket_id = 'media' and ((storage.foldername(name))[1])::uuid in (select public.my_accounts('{admin,editor}'::public.member_role[])))
+      using (bucket_id = 'media' and (storage.foldername(name))[1] in (select public.my_accounts('{admin,editor}'::public.member_role[])::text))
     $p$;
   end if;
 end $$;
